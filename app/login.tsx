@@ -1,0 +1,231 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase } from "@/lib/supabase/client";
+import { useHasatMobileSession } from "@/lib/store/session";
+
+/**
+ * Telefon OTP girişi — web'deki akışın aynısı (`src/routes/login.tsx`):
+ * signInWithOtp(phone) → verifyOtp → profile fetch → role'e göre yönlendirme.
+ * Format: 905XXXXXXXXX (DB'de + prefix'siz saklanır, bkz. _Context.md "Phone
+ * format"), Supabase'e gönderilirken E.164 (+905XXXXXXXXX) kullanılır.
+ *
+ * Kapsam (M5-a): sadece giriş. Rol seçimi/onboarding akışı ve tarif
+ * ekranları M5-b.
+ */
+function translateAuthError(e: Error): string {
+  const m = (e?.message || "").toLowerCase();
+  if (m.includes("expired") || (m.includes("invalid") && m.includes("token")) || m.includes("otp")) {
+    return "Kod hatalı veya süresi dolmuş. Tekrar deneyin.";
+  }
+  if (m.includes("rate") || m.includes("too many") || m.includes("limit")) {
+    return "Çok fazla deneme. Lütfen biraz bekleyin.";
+  }
+  if (m.includes("phone")) return "Telefon numarası geçersiz.";
+  return e?.message || "Bir hata oluştu.";
+}
+
+export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
+  const updateUser = useHasatMobileSession((s) => s.updateUser);
+  const setRole = useHasatMobileSession((s) => s.setRole);
+
+  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(30);
+  const inputsRef = useRef<(TextInput | null)[]>([]);
+
+  useEffect(() => {
+    if (step !== "otp") return;
+    setCountdown(30);
+    const t = setInterval(() => setCountdown((c) => (c > 0 ? c - 1 : 0)), 1000);
+    return () => clearInterval(t);
+  }, [step]);
+
+  // TR yerel format: baştaki 0'ı at, 10 haneyi al (5XX XXX XX XX)
+  const phoneDigits = phone.replace(/\D/g, "").replace(/^0+/, "").slice(0, 10);
+
+  const sendOtp = async () => {
+    if (phoneDigits.length !== 10 || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const { error: err } = await supabase.auth.signInWithOtp({
+        phone: "+90" + phoneDigits,
+      });
+      if (err) throw err;
+      setStep("otp");
+      setOtp(["", "", "", "", "", ""]);
+    } catch (e) {
+      setError(translateAuthError(e as Error));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const resend = () => {
+    if (countdown > 0) return;
+    sendOtp();
+  };
+
+  const handleOtpChange = (i: number, val: string) => {
+    const digit = val.replace(/\D/g, "").slice(-1);
+    const next = [...otp];
+    next[i] = digit;
+    setOtp(next);
+    if (digit && i < 5) inputsRef.current[i + 1]?.focus();
+  };
+
+  const handleOtpKey = (i: number, key: string) => {
+    if (key === "Backspace" && !otp[i] && i > 0) inputsRef.current[i - 1]?.focus();
+  };
+
+  const verify = async () => {
+    if (otp.some((d) => !d) || verifying) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      const { data, error: err } = await supabase.auth.verifyOtp({
+        phone: "+90" + phoneDigits,
+        token: otp.join(""),
+        type: "sms",
+      });
+      if (err || !data.user) throw err ?? new Error("Doğrulama başarısız");
+
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
+      if (profileErr) throw profileErr;
+
+      const role = profile.role === "buyer" ? "buyer" : "farmer";
+      setRole(role);
+      updateUser({
+        id: data.user.id,
+        name: profile.name ?? undefined,
+        phone: "90" + phoneDigits,
+        city: profile.city ?? undefined,
+        premium: !!profile.premium,
+      });
+      router.replace("/home");
+    } catch (e) {
+      setError(translateAuthError(e as Error));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      className="flex-1 bg-dark"
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <View
+        className="flex-1 items-center justify-center px-6"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
+        <View className="mb-10 items-center">
+          <Text className="text-5xl mb-2">🌸</Text>
+          <Text className="text-saffron text-4xl font-bold">Hasat</Text>
+        </View>
+
+        <View className="w-full max-w-sm">
+          {step === "phone" ? (
+            <>
+              <Text className="text-hmuted text-xs mb-2">Telefon Numaranız</Text>
+              <View className="flex-row items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5">
+                <Text className="text-hwhite text-sm bg-white/10 rounded-md px-2 py-1">
+                  🇹🇷 +90
+                </Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="number-pad"
+                  placeholder="5XX XXX XX XX"
+                  placeholderTextColor="rgba(253,250,245,0.3)"
+                  className="flex-1 text-hwhite text-base"
+                  maxLength={13}
+                />
+              </View>
+              <Pressable
+                disabled={phoneDigits.length !== 10 || sending}
+                onPress={sendOtp}
+                className="mt-6 w-full rounded-xl py-3 items-center bg-saffron disabled:opacity-40"
+                style={{ opacity: phoneDigits.length !== 10 || sending ? 0.4 : 1 }}
+              >
+                {sending ? (
+                  <ActivityIndicator color="#FDFAF5" />
+                ) : (
+                  <Text className="text-hwhite font-medium">Kod Gönder →</Text>
+                )}
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <View className="items-center mb-4">
+                <Text className="text-hmuted text-xs">+90 {phoneDigits}</Text>
+                <Text className="text-hwhite text-sm mt-1">6 haneli kodu girin</Text>
+              </View>
+              <View className="flex-row justify-between gap-1">
+                {otp.map((d, i) => (
+                  <TextInput
+                    key={i}
+                    ref={(el) => {
+                      inputsRef.current[i] = el;
+                    }}
+                    value={d}
+                    onChangeText={(v) => handleOtpChange(i, v)}
+                    onKeyPress={(e) => handleOtpKey(i, e.nativeEvent.key)}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    textContentType={i === 0 ? "oneTimeCode" : undefined}
+                    className="w-11 h-14 text-center rounded-lg border border-white/15 bg-white/5 text-hwhite text-xl"
+                  />
+                ))}
+              </View>
+              <View className="mt-3 items-center">
+                {countdown > 0 ? (
+                  <Text className="text-hmuted text-xs">Tekrar gönder ({countdown}s)</Text>
+                ) : (
+                  <Pressable onPress={resend}>
+                    <Text className="text-hwhite text-xs underline">Tekrar gönder</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Pressable
+                disabled={otp.some((d) => !d) || verifying}
+                onPress={verify}
+                className="mt-6 w-full rounded-xl py-3 items-center bg-saffron"
+                style={{ opacity: otp.some((d) => !d) || verifying ? 0.4 : 1 }}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="#FDFAF5" />
+                ) : (
+                  <Text className="text-hwhite font-medium">Giriş Yap ✓</Text>
+                )}
+              </Pressable>
+              <Pressable onPress={() => setStep("phone")} className="mt-3">
+                <Text className="text-hmuted text-xs text-center">← Numarayı değiştir</Text>
+              </Pressable>
+            </>
+          )}
+          {error ? <Text className="text-hred text-xs mt-4 text-center">{error}</Text> : null}
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
