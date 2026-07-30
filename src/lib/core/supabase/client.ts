@@ -26,8 +26,14 @@ export interface HasatAuthStorageAdapter {
 }
 
 export interface CreateHasatSupabaseClientOptions {
-  /** Oturumun nerede saklanacağı — web: `localStorage`, mobil: expo-secure-store tabanlı adapter. */
-  storage: HasatAuthStorageAdapter;
+  /**
+   * Oturumun nerede saklanacağı — web: `localStorage`, mobil:
+   * expo-secure-store tabanlı adapter. Opsiyonel: web'in SSR yolunda
+   * (`typeof window === 'undefined'`) mevcut davranış `storage: undefined`
+   * geçip supabase-js'in SSR'da güvenli varsayılanına bırakmaktı — bu factory
+   * o davranışı değiştirmez.
+   */
+  storage?: HasatAuthStorageAdapter;
 }
 
 /**
