@@ -25,3 +25,20 @@ export function formatCropIngredient(slug: string | null | undefined): string {
     .filter(Boolean)
     .join(" ");
 }
+
+/** Malzeme kartındaki isim: `rpc_recipe_availability.crop_display_name`
+ * kanonik gösterim adı (slug'dan türetilmiş tahmin değil, gerçek isim) —
+ * mevcutsa o kullanılır, M4-b'nin küçük-harf kararına uyarak küçük harfe
+ * çevrilir (cümle-içi kullanım, liste öğesi başı değil). `availability`
+ * canlı veri olduğundan offline'da hiç çağrılmaz (bkz. offline/db.ts) — o
+ * durumda `cropDisplayName` her zaman undefined gelir ve slug fallback'i
+ * (`formatCropIngredient`) devreye girer. */
+export function formatIngredientName(
+  crop: string | null | undefined,
+  cropDisplayName: string | null | undefined,
+  freeTextName: string | null | undefined,
+): string {
+  if (cropDisplayName) return cropDisplayName.toLocaleLowerCase("tr-TR");
+  if (crop) return formatCropIngredient(crop);
+  return freeTextName ?? "";
+}

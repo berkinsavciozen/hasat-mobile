@@ -5,7 +5,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { useIsOffline } from "@/lib/net/useIsOffline";
-import { formatCropIngredient, formatTRY } from "@/lib/hasat/format";
+import { formatIngredientName, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import {
   useRecipeDetail,
@@ -205,9 +205,7 @@ function IngredientCard({
   avail?: import("@/lib/hasat/recipes").AvailabilityRow;
   shop?: import("@/lib/hasat/recipes").ShoppingListRow;
 }) {
-  const name = ingredient.crop
-    ? formatCropIngredient(ingredient.crop)
-    : (ingredient.free_text_name ?? "");
+  const name = formatIngredientName(ingredient.crop, avail?.crop_display_name, ingredient.free_text_name);
   const qtyLine = shop
     ? `${shop.scaled_quantity ?? shop.recipe_quantity ?? ""} ${shop.recipe_unit ?? ""}`.trim()
     : `${ingredient.quantity ?? ""} ${ingredient.unit ?? ""}`.trim();
