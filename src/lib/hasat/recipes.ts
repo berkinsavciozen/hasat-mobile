@@ -108,6 +108,49 @@ export interface RecipeListResult {
   cachedAt: number | null;
 }
 
+// Apple 4.2: liste uçak modunda görünüyor olması yetmez — reviewer bir tarife
+// dokunduğunda da adım+malzeme görmeli, yoksa "önbellekte yok" tam 4.2
+// senaryosu. Bu yüzden liste ağdan başarıyla çekilir çekilmez 18 tarifin
+// tamamının detayı da arka planda önbelleklenir (bkz. aşağıdaki
+// `prefetchAllRecipeDetails` — bilerek `await` edilmiyor, liste render'ını
+// bloklamaz). `detailPrefetchInFlight` aynı anda iki taramanın üst üste
+// binmesini önler (staleTime sonrası ardışık refetch'ler gibi).
+let detailPrefetchInFlight = false;
+
+async function prefetchAllRecipeDetails(
+  items: RecipeListItem[],
+): Promise<{ cached: number; totalBytes: number }> {
+  if (detailPrefetchInFlight) return { cached: 0, totalBytes: 0 };
+  detailPrefetchInFlight = true;
+  const CONCURRENCY = 5;
+  let cached = 0;
+  let totalBytes = 0;
+  try {
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      const batch = items.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async (item) => {
+          const detail = await fetchRecipeDetailFromNetwork(item.slug);
+          if (!detail) return 0;
+          await cacheRecipeDetail(detail.recipe, detail.steps, detail.ingredients);
+          return JSON.stringify(detail).length;
+        }),
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value > 0) {
+          cached += 1;
+          totalBytes += r.value;
+        } else if (r.status === "rejected") {
+          console.warn("[recipeCache] detay ön-önbellekleme başarısız", r.reason);
+        }
+      }
+    }
+    return { cached, totalBytes };
+  } finally {
+    detailPrefetchInFlight = false;
+  }
+}
+
 /** Liste ekranı — offline ise (veya ağ başarısız olursa) önbellekten okur. */
 export function useRecipeList() {
   const isOffline = useIsOffline();
@@ -121,6 +164,14 @@ export function useRecipeList() {
       try {
         const items = await fetchRecipeListFromNetwork();
         await cacheRecipeList(items);
+        prefetchAllRecipeDetails(items)
+          .then(({ cached, totalBytes }) => {
+            if (cached === 0) return;
+            console.log(
+              `[recipeCache] ${cached}/${items.length} tarif detayı önbelleklendi (~${(totalBytes / 1024).toFixed(1)} KB)`,
+            );
+          })
+          .catch((e) => console.warn("[recipeCache] detay ön-önbellekleme hata", e));
         return { items, source: "network", cachedAt: Date.now() };
       } catch (e) {
         const cached = await getCachedRecipeList();

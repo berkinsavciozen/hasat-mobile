@@ -71,6 +71,15 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
         ],
       );
     }
+    // Listeden düşen tariflerin (silindi/gizlendi) yetim adım+malzeme
+    // satırlarını temizle — cached_recipes yeniden yazıldı ama steps/ingredients
+    // tabloları recipe_id bazlı, yukarıdaki DELETE onları etkilemiyordu.
+    await db.runAsync(
+      "DELETE FROM cached_recipe_steps WHERE recipe_id NOT IN (SELECT id FROM cached_recipes)",
+    );
+    await db.runAsync(
+      "DELETE FROM cached_recipe_ingredients WHERE recipe_id NOT IN (SELECT id FROM cached_recipes)",
+    );
   });
 }
 
