@@ -80,7 +80,31 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
     await db.runAsync(
       "DELETE FROM cached_recipe_ingredients WHERE recipe_id NOT IN (SELECT id FROM cached_recipes)",
     );
+    await db.runAsync(
+      "DELETE FROM cached_recipe_detail_meta WHERE recipe_id NOT IN (SELECT id FROM cached_recipes)",
+    );
   });
+}
+
+export interface DetailCacheStats {
+  /** Adım+malzemesi önbellekte olan tarif sayısı. */
+  count: number;
+  /** Bu detayların en eskisinin önbelleklenme anı (epoch ms). */
+  oldestCachedAt: number | null;
+}
+
+/** P23-M6 — bulk detay prefetch'inin gereksiz tekrarını önlemek için
+ * (`useRecipeList` `staleTime` 60 sn; her refetch'te 18 tarifin detayını
+ * yeniden indirmek boşuna trafik). Çağıran taraf: önbellekteki detay sayısı
+ * liste sayısına eşitse VE en eski detay 24 saatten yeniyse prefetch atlanır. */
+export async function getDetailCacheStats(): Promise<DetailCacheStats> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ n: number; oldest: number | null }>(
+    `SELECT COUNT(*) AS n, MIN(m.cached_at) AS oldest
+       FROM cached_recipe_detail_meta m
+       JOIN cached_recipes r ON r.id = m.recipe_id`,
+  );
+  return { count: row?.n ?? 0, oldestCachedAt: row?.oldest ?? null };
 }
 
 export async function getCachedRecipeList(): Promise<{
@@ -171,6 +195,11 @@ export async function cacheRecipeDetail(
         ],
       );
     }
+    await db.runAsync(
+      `INSERT INTO cached_recipe_detail_meta (recipe_id, cached_at) VALUES (?, ?)
+       ON CONFLICT(recipe_id) DO UPDATE SET cached_at = excluded.cached_at`,
+      [recipe.id, now],
+    );
   });
 }
 

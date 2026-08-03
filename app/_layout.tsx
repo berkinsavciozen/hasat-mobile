@@ -7,9 +7,17 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { View, ActivityIndicator } from "react-native";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
+import { configureNotifications } from "@/lib/native/notifications";
 
 export default function RootLayout() {
   const [bootstrapped, setBootstrapped] = useState(false);
+
+  // P23-M6: bildirim davranışı + Android kanalları. İzin İSTEMEZ (izin akışı
+  // bağlam kartlarına bağlı — bkz. PushPermissionCard / pişirme modu);
+  // yalnızca uygulama açılışında handler ve kanalları kurar.
+  useEffect(() => {
+    configureNotifications();
+  }, []);
 
   useEffect(() => {
     // Supabase, storage adaptöründen (LargeSecureStore) oturumu okuyup

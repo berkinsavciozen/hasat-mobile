@@ -38,6 +38,21 @@
             "minSdkVersion": 24
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Yazılı bir tarifin fotoğrafını galeriden seçip Hasat defterine aktarabilmen için.",
+          "cameraPermission": "Yazılı bir tarifin (kitap sayfası, el yazısı not) fotoğrafını çekip Hasat defterine aktarabilmen için.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#C8833B",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {
