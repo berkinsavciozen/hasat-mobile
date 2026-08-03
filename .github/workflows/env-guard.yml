@@ -1,0 +1,35 @@
+name: env guard (push)
+
+# `.env` içerik bekçisi — `hasat-core`'daki `drift-check.yml` bunu zaten
+# çalıştırıyor ama yalnızca (a) hasat-core'a push olduğunda veya (b) günlük
+# 06:00 UTC cron'da. hasat-mobile'a doğrudan push (örn. `.env` elle
+# düzenlenirse) o kontrolü hiç tetiklemiyordu — bir sır sızması olsa bile
+# fark edilmesi 24 saate kadar sürebilirdi (bkz. hasat-vault/TODO.md → P23-M5-b
+# build log). Bu workflow aynı kontrolü hasat-mobile'ın KENDİ push'unda
+# çalıştırıyor; hasat-core'daki günlük kontrol yedek katman olarak kalıyor.
+#
+# Script'in kendisi burada KOPYALANMADI — hasat-core'dan salt-okunur checkout
+# ile çağrılıyor (public repo, token gerekmiyor). Tek doğruluk kaynağı
+# hasat-core/scripts/check-env-guard.mjs'te kalıyor (kural #106'nın ruhu:
+# aynı mantık iki yerde ayrı ayrı yaşarsa sapar).
+
+on:
+  push:
+    paths: [".env"]
+  workflow_dispatch:
+
+jobs:
+  env-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: hasat-mobile'ı çek
+        uses: actions/checkout@v5
+
+      - name: hasat-core'un bekçi script'ini çek (salt-okunur, public repo)
+        uses: actions/checkout@v5
+        with:
+          repository: berkinsavciozen/hasat-core
+          path: hasat-core-scripts
+
+      - name: .env içerik bekçisi (beyaz liste)
+        run: node hasat-core-scripts/scripts/check-env-guard.mjs .
