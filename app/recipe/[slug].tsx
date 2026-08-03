@@ -32,17 +32,24 @@ import {
  */
 export default function RecipeDetailScreen() {
   const insets = useSafeAreaInsets();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, own } = useLocalSearchParams<{ slug: string; own?: string }>();
+  const isOwn = own === "1";
   const isOffline = useIsOffline();
-  const { data, isLoading, isError } = useRecipeDetail(slug);
+  const { data, isLoading, isError } = useRecipeDetail(slug, { own: isOwn });
 
   const recipe = data?.recipe;
   const [servings, setServings] = useState<number | null>(null);
   const effectiveServings = servings ?? recipe?.servings ?? 4;
 
-  useLogRecipeView(recipe?.id);
-  const { data: availability = [] } = useRecipeAvailability(recipe?.id);
-  const { data: shoppingList = [] } = useRecipeShoppingList(recipe?.id, effectiveServings);
+  // Kendi taslağında ölçümleme/eşleştirme yok: `recipe_views` public korpusun
+  // hunisini ölçüyor (v_kpi_recipe_funnel), kişisel defter o huniye girmiyor;
+  // malzemelerin `crop`'u da bu akışta daima NULL (editoryal eşleştirme).
+  useLogRecipeView(isOwn ? undefined : recipe?.id);
+  const { data: availability = [] } = useRecipeAvailability(isOwn ? undefined : recipe?.id);
+  const { data: shoppingList = [] } = useRecipeShoppingList(
+    isOwn ? undefined : recipe?.id,
+    effectiveServings,
+  );
   const { availByIngredient, shopByIngredient } = useIngredientMaps(availability, shoppingList);
 
   if (isLoading) {
@@ -61,7 +68,9 @@ export default function RecipeDetailScreen() {
       >
         <Text className="text-center text-sm text-hmuted">
           {isOffline
-            ? "Bu tarif önbellekte yok — internete bağlanıp bir kez açtıktan sonra çevrimdışı da görünür."
+            ? isOwn
+              ? "Kendi tariflerin çevrimdışı görüntülenemiyor — bağlanınca burada olacak."
+              : "Bu tarif önbellekte yok — internete bağlanıp bir kez açtıktan sonra çevrimdışı da görünür."
             : "Tarif bulunamadı."}
         </Text>
         <Pressable onPress={() => router.back()} className="mt-4">
@@ -160,6 +169,30 @@ export default function RecipeDetailScreen() {
 
       <View className="mt-6 px-5">
         <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">Hazırlanışı</Text>
+
+        {/* P23-M6 — Pişirme moduna giriş. Şartname (Visual-Spec → "1. Pişirme
+            Modu" → "Adım listesi (giriş noktası)"): adımların özeti burada,
+            en altta değil en üstte bir CTA — kullanıcı adımları okumadan da
+            başlayabilmeli. Adım yoksa buton hiç render edilmiyor. */}
+        {steps.length > 0 && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/cook/[slug]",
+                params: isOwn ? { slug: r.slug, own: "1" } : { slug: r.slug },
+              })
+            }
+            className="mt-3 items-center rounded-2xl bg-saffron py-4"
+          >
+            <Text className="text-base font-medium text-hwhite">👨‍🍳 Pişirmeye Başla</Text>
+          </Pressable>
+        )}
+        {steps.some((s) => s.timer_seconds != null) && (
+          <Text className="mt-2 text-center text-[11px] text-hmuted">
+            Süreli adımlarda zamanlayıcı çalışır, ekran kararmaz.
+          </Text>
+        )}
+
         <View className="mt-3">
           {steps.map((s) => (
             <View key={s.id} className="mb-3 rounded-xl border border-white/10 bg-white/5 p-3">

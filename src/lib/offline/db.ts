@@ -60,6 +60,18 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
           is_key_ingredient INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (recipe_id, sort_order)
         );
+
+        -- P23-M6: DETAYIN ne zaman önbelleklendiği. Ayrı bir tabloda tutuluyor
+        -- çünkü cached_recipes.cached_at LİSTE tazeliğini gösteriyor —
+        -- cacheRecipeList her ağ isteğinde tabloyu silip yeniden yazıyor.
+        -- Detay tazeliğini oradan okumak "her zaman taze" yanlış sonucunu
+        -- verirdi ve 24 saatlik yenileme kuralı hiç tetiklenmezdi.
+        -- Yeni tablo olduğu için ALTER/migrasyon gerekmiyor: mevcut kurulumlarda
+        -- boş başlar, ilk prefetch turunda dolar.
+        CREATE TABLE IF NOT EXISTS cached_recipe_detail_meta (
+          recipe_id TEXT PRIMARY KEY,
+          cached_at INTEGER NOT NULL
+        );
       `);
       return db;
     });

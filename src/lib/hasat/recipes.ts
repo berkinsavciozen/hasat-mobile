@@ -18,6 +18,7 @@ import {
   getCachedRecipeList,
   cacheRecipeDetail,
   getCachedRecipeDetail,
+  getDetailCacheStats,
 } from "@/lib/offline/recipeCache";
 import type {
   RecipeListItem,
@@ -115,12 +116,36 @@ export interface RecipeListResult {
 // `prefetchAllRecipeDetails` — bilerek `await` edilmiyor, liste render'ını
 // bloklamaz). `detailPrefetchInFlight` aynı anda iki taramanın üst üste
 // binmesini önler (staleTime sonrası ardışık refetch'ler gibi).
+//
+// P23-M6 EKİ — gereksiz tekrar: `detailPrefetchInFlight` yalnızca EŞZAMANLILIĞI
+// engelliyordu; ardışık refetch'lerde (staleTime 60 sn) 18 tarifin detayı her
+// seferinde yeniden indiriliyordu. Artık önbellek zaten tamsa (detay sayısı ≥
+// liste sayısı) ve en eski detay 24 saatten yeniyse tarama hiç başlamıyor.
+// 24 saat: editoryal korpus günde bir kez tazelenmesi yeterli bir veri
+// (P23-M3'ten beri 18 tarif; içerik değişimi editoryal ve seyrek).
+const DETAIL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 let detailPrefetchInFlight = false;
 
 async function prefetchAllRecipeDetails(
   items: RecipeListItem[],
-): Promise<{ cached: number; totalBytes: number }> {
+): Promise<{ cached: number; totalBytes: number; skipped?: boolean }> {
   if (detailPrefetchInFlight) return { cached: 0, totalBytes: 0 };
+  try {
+    const stats = await getDetailCacheStats();
+    if (
+      items.length > 0 &&
+      stats.count >= items.length &&
+      stats.oldestCachedAt != null &&
+      Date.now() - stats.oldestCachedAt < DETAIL_CACHE_TTL_MS
+    ) {
+      return { cached: 0, totalBytes: 0, skipped: true };
+    }
+  } catch (e) {
+    // Önbellek istatistiği okunamazsa prefetch'i yine de yap — Apple 4.2'nin
+    // offline testi, tasarruftan önce gelir.
+    console.warn("[recipeCache] detay önbellek istatistiği okunamadı", e);
+  }
   detailPrefetchInFlight = true;
   const CONCURRENCY = 5;
   let cached = 0;
@@ -165,7 +190,11 @@ export function useRecipeList() {
         const items = await fetchRecipeListFromNetwork();
         await cacheRecipeList(items);
         prefetchAllRecipeDetails(items)
-          .then(({ cached, totalBytes }) => {
+          .then(({ cached, totalBytes, skipped }) => {
+            if (skipped) {
+              console.log("[recipeCache] detay önbelleği tam ve 24 saatten yeni — prefetch atlandı");
+              return;
+            }
             if (cached === 0) return;
             console.log(
               `[recipeCache] ${cached}/${items.length} tarif detayı önbelleklendi (~${(totalBytes / 1024).toFixed(1)} KB)`,
@@ -222,6 +251,64 @@ async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
   };
 }
 
+/**
+ * P23-M6 — kullanıcının KENDİ (private, draft) tarifi. Public sorgudan iki
+ * farkı var ve ikisi de bilinçli:
+ *   1. `visibility='public' AND status='published'` filtresi yok; onun yerine
+ *      `owner_id = auth.uid()`. (RLS zaten başkasının private tarifini
+ *      döndürmüyor — bu filtre "kendi taslağım" niyetini açık yazıyor.)
+ *   2. HİÇBİR ŞEKİLDE `expo-sqlite` önbelleğine yazılmaz/okunmaz. Önbellek
+ *      editoryal public korpusun deposu; oraya bir private taslak yazmak
+ *      `getCachedRecipeList()` üzerinden onu offline LİSTEDE gösterirdi —
+ *      yani "kullanıcı importu asla public korpusa karışmaz" kuralının
+ *      önbellek tarafındaki ihlali olurdu.
+ */
+async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
+  recipe: RecipeDetail;
+  steps: RecipeStepRow[];
+  ingredients: RecipeIngredientRow[];
+} | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) return null;
+
+  const { data: recipeRow, error: recipeErr } = await supabase
+    .from("recipes")
+    .select(RECIPE_LIST_COLUMNS)
+    .eq("slug", slug)
+    .eq("owner_id", uid)
+    .maybeSingle();
+  if (recipeErr) throw recipeErr;
+  if (!recipeRow) return null;
+
+  const [{ data: stepRows, error: stepErr }, { data: ingredientRows, error: ingErr }] =
+    await Promise.all([
+      supabase
+        .from("recipe_steps")
+        .select("id, step_no, instruction, photo_url, timer_seconds")
+        .eq("recipe_id", recipeRow.id)
+        .order("step_no", { ascending: true }),
+      supabase
+        .from("recipe_ingredients")
+        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient")
+        .eq("recipe_id", recipeRow.id)
+        .order("sort_order", { ascending: true }),
+    ]);
+  if (stepErr) throw stepErr;
+  if (ingErr) throw ingErr;
+
+  return {
+    recipe: {
+      ...(recipeRow as any),
+      diet_tags: recipeRow.diet_tags ?? [],
+      displayPhotoUrl: recipeRow.cover_photo_url ?? null,
+      isRepresentativePhoto: false,
+    } as RecipeDetail,
+    steps: (stepRows ?? []) as RecipeStepRow[],
+    ingredients: (ingredientRows ?? []) as RecipeIngredientRow[],
+  };
+}
+
 export interface RecipeDetailResult {
   recipe: RecipeDetail;
   steps: RecipeStepRow[];
@@ -230,12 +317,19 @@ export interface RecipeDetailResult {
   cachedAt: number | null;
 }
 
-export function useRecipeDetail(slug: string | undefined) {
+export function useRecipeDetail(slug: string | undefined, options?: { own?: boolean }) {
   const isOffline = useIsOffline();
+  const own = !!options?.own;
   return useQuery({
-    queryKey: ["recipeDetail", slug, isOffline],
+    queryKey: ["recipeDetail", slug, isOffline, own],
     enabled: !!slug,
     queryFn: async (): Promise<RecipeDetailResult | null> => {
+      if (own) {
+        if (isOffline) return null;
+        const fresh = await fetchOwnRecipeDetailFromNetwork(slug!);
+        if (!fresh) return null;
+        return { ...fresh, source: "network", cachedAt: Date.now() };
+      }
       if (isOffline) {
         const cached = await getCachedRecipeDetail(slug!);
         if (!cached) return null;
