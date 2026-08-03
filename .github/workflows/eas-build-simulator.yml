@@ -1,0 +1,81 @@
+name: EAS Simulator Build (iOS)
+
+# Yalnızca elle tetiklenir — otomatik tetikleyici (push/PR/schedule) YOK.
+#
+# Kota koruması (kural: bkz. hasat-vault TODO.md → "P23-M5-a-ek"):
+# Expo'nun ücretsiz katmanı ayda 30 build'e izin veriyor (iOS için bunların
+# en fazla 15'i), kuyrukta bekleme süresi 90 dakikayı aşabiliyor, ve her
+# BAŞARISIZ deneme de kotadan düşüyor. Bu yüzden bu workflow otomatik
+# tetiklenmez ve yalnızca `app.json` eksiksizken (projectId + bundle
+# identifier + package doğru) elle çalıştırılmalıdır — kotayı boşa
+# harcayan başarısız bir denemeyi önlemenin tek yolu budur.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-simulator:
+    name: iOS Simulator Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Expo + EAS CLI kurulumu
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Bağımlılıkları kur (npm ci)
+        run: npm ci
+
+      - name: EAS simulator build (iOS, non-interactive)
+        run: |
+          eas build --profile simulator --platform ios --non-interactive --json > eas-build-output.json
+          cat eas-build-output.json
+
+      - name: Artifact linkini özet sayfasına yaz
+        if: always()
+        run: |
+          ARTIFACT_URL=""
+          if [ -f eas-build-output.json ]; then
+            ARTIFACT_URL=$(node -e "
+              try {
+                const raw = require('fs').readFileSync('eas-build-output.json', 'utf8');
+                const data = JSON.parse(raw);
+                const build = Array.isArray(data) ? data[0] : data;
+                const url = build?.artifacts?.buildUrl
+                  || build?.artifacts?.applicationArchiveUrl
+                  || build?.buildDetailsPageUrl
+                  || build?.url
+                  || '';
+                console.log(url);
+              } catch (e) {
+                console.log('');
+              }
+            ")
+          fi
+
+          {
+            echo '## 📱 EAS Simulator Build'
+            echo ''
+            if [ -n "$ARTIFACT_URL" ]; then
+              echo "**Artifact indirme linki:** $ARTIFACT_URL"
+              echo ''
+              echo 'Sonraki adım: bu linkten `.tar.gz`'"'"'i indir, aç, içindeki `.app`'"'"'i çıkar, sonra https://appetize.io/upload adresine sürükle-bırak yükle (hesap gerekmiyor, ücretsiz plan ~100 dk/ay).'
+            else
+              echo '⚠️ Artifact linki `--json` çıktısından otomatik çıkarılamadı.'
+              echo ''
+              echo 'Expo panosunda Projects → hasat-mobile (proje ID: `bff1a47c-41d5-42fa-bddc-83320c079253`) → Builds sekmesinden en son build'"'"'i bul ve indirme linkine oradan ulaş.'
+            fi
+            echo ''
+            echo '---'
+            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build (iOS'"'"'de en fazla 15) — başarısız denemeler de düşer. Bu workflow'"'"'u sadece gerçekten bir simulator build'"'"'ine ihtiyacın olduğunda çalıştır._'
+          } >> "$GITHUB_STEP_SUMMARY"

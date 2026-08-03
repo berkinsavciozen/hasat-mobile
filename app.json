@@ -10,10 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hasat.mobile"
+      "bundleIdentifier": "com.hasat.app"
     },
     "android": {
-      "package": "com.hasat.mobile",
+      "package": "com.hasat.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -42,6 +42,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bff1a47c-41d5-42fa-bddc-83320c079253"
+      }
     }
   }
 }
