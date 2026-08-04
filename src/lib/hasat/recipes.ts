@@ -236,7 +236,7 @@ async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
         .order("step_no", { ascending: true }),
       supabase
         .from("recipe_ingredients")
-        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient")
+        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class")
         .eq("recipe_id", recipeRow.id)
         .order("sort_order", { ascending: true }),
     ]);
@@ -247,7 +247,7 @@ async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
   return {
     recipe: { ...(withCover as any), diet_tags: recipeRow.diet_tags ?? [] },
     steps: (stepRows ?? []) as RecipeStepRow[],
-    ingredients: (ingredientRows ?? []) as RecipeIngredientRow[],
+    ingredients: (ingredientRows ?? []) as unknown as RecipeIngredientRow[],
   };
 }
 
@@ -290,7 +290,7 @@ async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
         .order("step_no", { ascending: true }),
       supabase
         .from("recipe_ingredients")
-        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient")
+        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class")
         .eq("recipe_id", recipeRow.id)
         .order("sort_order", { ascending: true }),
     ]);
@@ -305,7 +305,7 @@ async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
       isRepresentativePhoto: false,
     } as RecipeDetail,
     steps: (stepRows ?? []) as RecipeStepRow[],
-    ingredients: (ingredientRows ?? []) as RecipeIngredientRow[],
+    ingredients: (ingredientRows ?? []) as unknown as RecipeIngredientRow[],
   };
 }
 
@@ -380,6 +380,44 @@ export function useRecipeShoppingList(recipeId: string | undefined, servings: nu
       });
       if (error) throw error;
       return (data ?? []) as unknown as ShoppingListRow[];
+    },
+  });
+}
+
+/**
+ * P23-M6-ek — "Sipariş Ver" hedefinin kaynağı. Web'deki `useMatchedListingIds`'in
+ * (hasat-d2c-marketplace/src/lib/hasat/recipes.ts) birebir mobil karşılığı:
+ * doğrudan `listings` tablosu (anon-safe RLS), crop başına en ucuz aktif
+ * ilan — ama web'den farklı olarak `farmer_id`'yi de getiriyor, çünkü mobilde
+ * hedef web'in kendi (bugün jenerik `/buyer/discover`'a giden) "Ürün
+ * sayfasına git" linki değil, doğrudan `buyer.product.$farmerId.$crop` — bkz.
+ * Build/P23-Mobile.md → "P23-M6-ek" (otonom karar, kural #107).
+ */
+export interface MatchedListing {
+  listingId: string;
+  farmerId: string;
+}
+
+export function useMatchedListingIds(crops: string[]) {
+  const key = Array.from(new Set(crops.filter(Boolean))).sort();
+  const isOffline = useIsOffline();
+  return useQuery({
+    queryKey: ["recipeMatchedListingIds", key],
+    enabled: key.length > 0 && !isOffline,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<Map<string, MatchedListing>> => {
+      const { data, error } = await supabase
+        .from("listings")
+        .select("id, crop, farmer_id, price_per_unit")
+        .in("crop", key)
+        .eq("status", "active")
+        .order("price_per_unit", { ascending: true });
+      if (error) throw error;
+      const map = new Map<string, MatchedListing>();
+      for (const row of (data ?? []) as Array<{ id: string; crop: string; farmer_id: string }>) {
+        if (!map.has(row.crop)) map.set(row.crop, { listingId: row.id, farmerId: row.farmer_id });
+      }
+      return map;
     },
   });
 }

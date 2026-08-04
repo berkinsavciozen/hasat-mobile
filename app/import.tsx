@@ -35,9 +35,11 @@ import {
   ImportError,
   LOW_CONFIDENCE_THRESHOLD,
   type RecipeDraft,
+  type IngredientClass,
 } from "@/lib/hasat/import";
 import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
 import { useIsOffline } from "@/lib/net/useIsOffline";
+import { CropPickerModal } from "@/components/hasat/CropPickerModal";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -50,10 +52,12 @@ export default function ImportScreen() {
 
   const [stage, setStage] = useState<Stage>("pick");
   const [text, setText] = useState("");
+  const [recipeName, setRecipeName] = useState("");
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [cropPickerForKey, setCropPickerForKey] = useState<string | null>(null);
 
   const run = useCallback(
     async (input: { mode: "text" | "photo"; text?: string; base64?: string; mime?: string }) => {
@@ -65,6 +69,7 @@ export default function ImportScreen() {
           text: input.text,
           imageBase64: input.base64,
           imageMime: input.mime,
+          recipeName: recipeName.trim() || undefined,
         });
         const loaded = await loadDraft(result.recipeId);
         setDraft(loaded);
@@ -74,7 +79,7 @@ export default function ImportScreen() {
         setStage(input.mode === "text" ? "text" : "pick");
       }
     },
-    [],
+    [recipeName],
   );
 
   const pickImage = useCallback(
@@ -276,9 +281,12 @@ export default function ImportScreen() {
             </View>
           </View>
 
-          {/* Malzemeler — crop rozeti YOK (şartname 3c "Kritik kural"):
-              `recipe_ingredients.crop` bu akışta daima NULL, eşleştirme
-              editoryal iş. Nötr görünüm bir eksiklik değil, tasarım. */}
+          {/* Malzemeler — P23-M6-ek: `recipe_ingredients.crop` artık daima NULL
+              değil (deterministik alias trigger'ı bağlıyorsa dolu gelir).
+              Otomatik eşleşen crop burada önseçili gösterilir; kullanıcı
+              değiştirebilir veya kaldırabilir (CropPickerModal). Alias'ı
+              boş olan 56 crop için eşleşme burada tamamlanabilir — bu da
+              M9'un alias doldurma işine kullanım verisi üretir. */}
           <SectionHeader
             title={`Malzemeler (${draft.ingredients.length})`}
             onAdd={() =>
@@ -286,7 +294,17 @@ export default function ImportScreen() {
                 ...draft,
                 ingredients: [
                   ...draft.ingredients,
-                  { key: newKey("ing"), name: "", quantity: "", unit: "", note: null, isKey: false },
+                  {
+                    id: null,
+                    key: newKey("ing"),
+                    name: "",
+                    quantity: "",
+                    unit: "",
+                    note: null,
+                    isKey: false,
+                    crop: null,
+                    ingredientClass: null,
+                  },
                 ],
               })
             }
@@ -345,8 +363,51 @@ export default function ImportScreen() {
                   className="flex-1 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-hwhite"
                 />
               </View>
+              <View className="mt-2 flex-row flex-wrap items-center gap-2">
+                <Pressable
+                  onPress={() => setCropPickerForKey(ing.key)}
+                  className="rounded-full border px-2.5 py-1"
+                  style={{
+                    borderColor: ing.crop ? "#C8833B" : "rgba(255,255,255,0.15)",
+                    backgroundColor: ing.crop ? "rgba(200,131,59,0.15)" : "transparent",
+                  }}
+                >
+                  <Text className="text-[11px]" style={{ color: ing.crop ? "#C8833B" : "rgba(253,250,245,0.5)" }}>
+                    {ing.crop ? `🌾 ${ing.crop}` : "Ürün eşleştir"}
+                  </Text>
+                </Pressable>
+                <ClassToggle
+                  value={ing.ingredientClass}
+                  onChange={(v) => {
+                    const next = [...draft.ingredients];
+                    next[i] = { ...ing, ingredientClass: v };
+                    setDraft({ ...draft, ingredients: next });
+                  }}
+                />
+              </View>
             </View>
           ))}
+
+          {cropPickerForKey &&
+            (() => {
+              const target = draft.ingredients.find((x) => x.key === cropPickerForKey);
+              if (!target) return null;
+              return (
+                <CropPickerModal
+                  visible
+                  currentCrop={target.crop}
+                  ingredientName={target.name}
+                  onClose={() => setCropPickerForKey(null)}
+                  onSelect={(crop) => {
+                    const next = draft.ingredients.map((x) =>
+                      x.key === cropPickerForKey ? { ...x, crop } : x,
+                    );
+                    setDraft({ ...draft, ingredients: next });
+                    setCropPickerForKey(null);
+                  }}
+                />
+              );
+            })()}
 
           <SectionHeader
             title={`Adımlar (${draft.steps.length})`}
@@ -357,6 +418,14 @@ export default function ImportScreen() {
               })
             }
           />
+          {draft.steps.length === 0 && (
+            <View className="mb-2 rounded-xl border border-white/10 bg-white/5 p-3">
+              <Text className="text-xs text-hmuted">
+                Adımlar okunamadı, elle ekleyebilirsin. Kaynakta yazmayan bir adımı uydurmadık —
+                aşağıdaki "+ Ekle" ile kendi adımlarını yazabilirsin.
+              </Text>
+            </View>
+          )}
           {draft.steps.map((s, i) => (
             <View key={s.key} className="mb-2 rounded-xl border border-white/10 bg-white/5 p-3">
               <View className="flex-row items-start gap-2">
@@ -446,6 +515,20 @@ export default function ImportScreen() {
               <Text className="text-hwhite">yalnızca sana görünür</Text>.
             </Text>
 
+            <Field label="Tarifin adı (opsiyonel)">
+              <TextInput
+                value={recipeName}
+                onChangeText={setRecipeName}
+                placeholder="Ör. Karnıyarık"
+                placeholderTextColor="rgba(253,250,245,0.3)"
+                className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
+              />
+            </Field>
+            <Text className="mb-5 text-[11px] text-hmuted">
+              Bu ad yalnızca fotoğrafı/metni doğru okumamıza yardımcı olur — eksik kalan adım
+              veya malzemeyi bu isimden tamamlamayız.
+            </Text>
+
             <BigButton
               disabled={isOffline}
               label="📷 Fotoğraf Çek"
@@ -500,6 +583,46 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <View className="mb-3">
       <Text className="mb-1 text-[11px] uppercase tracking-wider text-hmuted">{label}</Text>
       {children}
+    </View>
+  );
+}
+
+/** P23-M6-ek: "tarımsal ürün / market malzemesi" sınıflandırması, extract-recipe'in
+ * tahmininden önseçili gelir, kullanıcı düzeltebilir. Sonradan "Talep Et" bu
+ * sınıfı `crop_requests.ingredient_class`'a taşır (bkz. Build/DB-Schema.md). */
+function ClassToggle({
+  value,
+  onChange,
+}: {
+  value: IngredientClass | null;
+  onChange: (v: IngredientClass) => void;
+}) {
+  return (
+    <View className="flex-row overflow-hidden rounded-full border border-white/15">
+      <Pressable
+        onPress={() => onChange("tarimsal")}
+        className="px-2.5 py-1"
+        style={{ backgroundColor: value === "tarimsal" ? "rgba(200,131,59,0.25)" : "transparent" }}
+      >
+        <Text
+          className="text-[11px]"
+          style={{ color: value === "tarimsal" ? "#C8833B" : "rgba(253,250,245,0.5)" }}
+        >
+          Tarımsal
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => onChange("platform_disi")}
+        className="px-2.5 py-1"
+        style={{ backgroundColor: value === "platform_disi" ? "rgba(255,255,255,0.15)" : "transparent" }}
+      >
+        <Text
+          className="text-[11px]"
+          style={{ color: value === "platform_disi" ? "#FDFAF5" : "rgba(253,250,245,0.5)" }}
+        >
+          Market malzemesi
+        </Text>
+      </Pressable>
     </View>
   );
 }

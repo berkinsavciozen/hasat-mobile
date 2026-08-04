@@ -38,6 +38,10 @@ export interface RecipeIngredientRow {
   unit: string | null;
   note: string | null;
   is_key_ingredient: boolean;
+  /** P23-M6-ek: extract-recipe'in olgusal sınıflandırması ("tarımsal" ürün mü
+   * yoksa market malzemesi mi), kullanıcı önizlemede düzeltebilir. Malzeme
+   * kartının dört-durum aksiyonlarını (Sipariş Ver / Talep Et) sürer. */
+  ingredient_class: "tarimsal" | "platform_disi" | null;
 }
 
 export interface AvailabilityRow {

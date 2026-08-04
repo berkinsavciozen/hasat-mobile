@@ -239,6 +239,10 @@ export async function getCachedRecipeDetail(slug: string): Promise<{
       unit: r.unit,
       note: r.note,
       is_key_ingredient: !!r.is_key_ingredient,
+      // Önbellek yalnızca public/editoryal korpus içindir (kullanıcı importu
+      // hiç yazılmaz — bkz. dosya başlığı) ve editoryal satırlarda
+      // `ingredient_class` daima NULL (yalnızca AI import sınıflandırıyor).
+      ingredient_class: null,
     })),
   };
 }
