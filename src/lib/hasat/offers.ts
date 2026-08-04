@@ -24,8 +24,6 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 
-const sb = supabase as any;
-
 export interface FarmerCropListing {
   id: string;
   crop: string;
@@ -46,17 +44,17 @@ export function useFarmerCropListings(farmerId: string | undefined, crop: string
     enabled: !!farmerId && !!crop,
     queryFn: async (): Promise<FarmerCropListing[]> => {
       const [{ data, error }, { data: profile }] = await Promise.all([
-        sb
+        supabase
           .from("listings")
           .select("id, crop, unit, price_per_unit, min_order, quantity, batch_name, quality, farmer_id")
-          .eq("farmer_id", farmerId)
+          .eq("farmer_id", farmerId!)
           .eq("status", "active")
-          .ilike("crop", crop)
+          .ilike("crop", crop!)
           .order("created_at", { ascending: true }),
-        sb.from("public_farmer_profiles").select("id, name, city").eq("id", farmerId).maybeSingle(),
+        supabase.from("public_farmer_profiles").select("id, name, city").eq("id", farmerId!).maybeSingle(),
       ]);
       if (error) throw error;
-      return ((data ?? []) as any[]).map((r) => ({
+      return (data ?? []).map((r) => ({
         id: r.id,
         crop: r.crop,
         unit: r.unit,
@@ -83,8 +81,8 @@ export function useCropCanonicalUnit(crop: string | undefined, fallback: string 
     queryKey: ["cropCanonicalUnit", crop],
     enabled: !!crop,
     queryFn: async (): Promise<string> => {
-      const { data } = await sb.from("crop_config").select("default_unit").eq("crop", crop).maybeSingle();
-      return (data?.default_unit as string | undefined) ?? fallback ?? "kg";
+      const { data } = await supabase.from("crop_config").select("default_unit").eq("crop", crop!).maybeSingle();
+      return data?.default_unit ?? fallback ?? "kg";
     },
   });
 }
@@ -101,22 +99,22 @@ export function useListingStock(listingId: string | undefined | null) {
     enabled: !!listingId,
     queryFn: async (): Promise<ListingStock> => {
       const [links, listingRes, offersRes] = await Promise.all([
-        sb
+        supabase
           .from("listing_harvest_entries")
           .select("harvest_entry_id, harvest_entries(quantity)")
           .eq("listing_id", listingId!),
-        sb.from("listings").select("quantity").eq("id", listingId!).maybeSingle(),
-        sb.from("offers").select("quantity").eq("listing_id", listingId!).eq("status", "accepted"),
+        supabase.from("listings").select("quantity").eq("id", listingId!).maybeSingle(),
+        supabase.from("offers").select("quantity").eq("listing_id", listingId!).eq("status", "accepted"),
       ]);
       if (links.error) throw links.error;
       if (listingRes.error) throw listingRes.error;
       if (offersRes.error) throw offersRes.error;
       const batchSum = (links.data ?? []).reduce(
-        (s: number, r: any) => s + Number(r.harvest_entries?.quantity ?? 0),
+        (s, r) => s + Number(r.harvest_entries?.quantity ?? 0),
         0,
       );
       const base = batchSum > 0 ? batchSum : Number(listingRes.data?.quantity ?? 0);
-      const reserved = (offersRes.data ?? []).reduce((s: number, r: any) => s + Number(r.quantity ?? 0), 0);
+      const reserved = (offersRes.data ?? []).reduce((s, r) => s + Number(r.quantity ?? 0), 0);
       return { base, reserved, available: Math.max(0, base - reserved) };
     },
   });
@@ -174,7 +172,10 @@ export function useCreateOffer() {
   return useMutation({
     mutationFn: async (input: CreateOfferInput): Promise<CreatedOffer> => {
       if (!input.items.length) throw new Error("En az bir parti seçmelisiniz");
-      const { data, error } = await sb.rpc("rpc_create_offer", {
+      // Args tipi p_note/p_subscription_id/p_source_recipe_id için
+      // `string | undefined` (SQL tarafı `default null`) — web'deki
+      // `insertOfferWithItems`'la aynı desen (queries.ts).
+      const { data, error } = await supabase.rpc("rpc_create_offer", {
         p_farmer_id: input.farmerId,
         p_items: input.items.map((i) => ({
           listing_id: i.listingId,
@@ -183,12 +184,12 @@ export function useCreateOffer() {
         })),
         p_delivery: input.delivery,
         p_delivery_date: input.deliveryDate,
-        p_note: input.note,
-        p_subscription_id: null,
-        p_source_recipe_id: null,
+        p_note: input.note ?? undefined,
+        p_subscription_id: undefined,
+        p_source_recipe_id: undefined,
       });
       if (error) throw error;
-      return data as CreatedOffer;
+      return data;
     },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["farmerCropListings", vars.farmerId] });
