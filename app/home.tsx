@@ -8,6 +8,7 @@ import { useIsOffline } from "@/lib/net/useIsOffline";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { PushPermissionCard } from "@/components/hasat/PushPermissionCard";
+import { DeleteAccountModal } from "@/components/hasat/DeleteAccountModal";
 import {
   useRecipeList,
   totalRecipeMinutes,
@@ -50,6 +51,7 @@ export default function RecipeListScreen() {
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
   const mine = useMyRecipes();
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // ── Push izni: bağlam kartı ────────────────────────────────────────────────
   const [showPushCard, setShowPushCard] = useState(false);
@@ -90,6 +92,17 @@ export default function RecipeListScreen() {
     clear();
   };
 
+  const afterAccountDeleted = async () => {
+    // device_tokens satırı hesap silme RPC'sinde zaten kaldırıldı —
+    // unregisterPushTokenOnSignOut() burada gereksiz (0 satır etkiler).
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Oturum zaten hesap silme RPC'siyle geçersizleşti (auth.users scrub).
+    }
+    clear();
+  };
+
   const items = data?.items ?? [];
   const showEmptyOfflineState = isOffline && !isLoading && items.length === 0;
   const myItems = mine.data ?? [];
@@ -107,9 +120,14 @@ export default function RecipeListScreen() {
             kullanmıyor (login.tsx/index.tsx aynı desen); `lucide-react-native`
             eklemek `react-native-svg` native bağımlılığı getirir, EAS build
             kotası kısıtlıyken (bkz. M5-a-ek-2) gereksiz bir risk. */}
-        <Pressable onPress={signOut} hitSlop={12} className="p-2">
-          <Text className="text-xs text-hmuted">Çıkış ✕</Text>
-        </Pressable>
+        <View className="items-end">
+          <Pressable onPress={signOut} hitSlop={12} className="p-2">
+            <Text className="text-xs text-hmuted">Çıkış ✕</Text>
+          </Pressable>
+          <Pressable onPress={() => setDeleteOpen(true)} hitSlop={12} className="px-2 pb-1">
+            <Text className="text-[11px] text-hred">Hesabımı Sil</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View className="mx-4 mb-3 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
@@ -192,6 +210,15 @@ export default function RecipeListScreen() {
       >
         <Text className="font-medium text-hwhite">+ Tarif Ekle</Text>
       </Pressable>
+
+      <DeleteAccountModal
+        visible={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false);
+          void afterAccountDeleted();
+        }}
+      />
     </View>
   );
 }
