@@ -73,6 +73,22 @@ export function useFarmerCropListings(farmerId: string | undefined, crop: string
   });
 }
 
+/** P21-A'nın "mixed-unit toplama riski" bulgusunun mobil karşılığı — aynı crop
+ * için farklı ilanlar farklı birimde olabilir (bkz. güncel veri: safran'ın
+ * 15g/500g/100kg partileri). Web'in `buyer.product.$farmerId.$crop.tsx`'i
+ * `crop_config.default_unit`'i kanonik birim olarak kullanıp `convertQuantity`
+ * ile topluyor — burada aynı desen. */
+export function useCropCanonicalUnit(crop: string | undefined, fallback: string | undefined) {
+  return useQuery({
+    queryKey: ["cropCanonicalUnit", crop],
+    enabled: !!crop,
+    queryFn: async (): Promise<string> => {
+      const { data } = await sb.from("crop_config").select("default_unit").eq("crop", crop).maybeSingle();
+      return (data?.default_unit as string | undefined) ?? fallback ?? "kg";
+    },
+  });
+}
+
 export interface ListingStock {
   base: number;
   reserved: number;

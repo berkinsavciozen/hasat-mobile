@@ -11,11 +11,13 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { formatTRY, formatCropIngredient } from "@/lib/hasat/format";
+import { convertQuantity } from "@/lib/core";
 import {
   useFarmerCropListings,
   useListingStock,
   useCreateOffer,
   useOfferItems,
+  useCropCanonicalUnit,
   DELIVERY_OPTIONS,
   DELIVERY_DATE_PRESETS,
   offsetToIsoDate,
@@ -34,7 +36,11 @@ export default function ProductScreen() {
   const createOffer = useCreateOffer();
 
   const items = useOfferItems(listings, selected);
-  const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  const { data: canonicalUnit = listings[0]?.unit ?? "kg" } = useCropCanonicalUnit(crop, listings[0]?.unit);
+  const totalQty = items.reduce((s, i) => {
+    const l = listings.find((x) => x.id === i.listingId);
+    return s + convertQuantity(i.quantity, l?.unit ?? canonicalUnit, canonicalUnit);
+  }, 0);
   const totalPrice = items.reduce((s, i) => s + i.quantity * i.pricePerUnit, 0);
   const belowMinListingIds = useMemo(() => {
     const ids = new Set<string>();
@@ -195,7 +201,7 @@ export default function ProductScreen() {
               {items.length > 0 && (
                 <Text className="text-xs text-hmuted">
                   {"  "}
-                  {Number(totalQty.toFixed(2))} {first.unit} · {items.length} parti
+                  {Number(totalQty.toFixed(2))} {canonicalUnit} · {items.length} parti
                 </Text>
               )}
             </Text>
