@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Image, Linking } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
@@ -8,7 +8,6 @@ import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { formatIngredientName, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
-import { buyerProductUrl } from "@/lib/hasat/webLinks";
 import {
   useRecipeDetail,
   useRecipeAvailability,
@@ -26,10 +25,12 @@ import {
 
 /**
  * P23-M5-b tarif detayı, P23-M6-ek'te dört-durumlu malzeme kartı aksiyonlarıyla
- * genişletildi (Build/P23-Mobile.md → "P23-M6-ek"):
- *   1. eşleşti + aktif ilan var → "Sipariş Ver" (web'in `buyer.product.$farmerId.$crop`
- *      sayfasına dışarı link — mobilde checkout yok, marketplace köprüsünün
- *      tamamı hâlâ M7, burada yalnızca doğru yere link verildi)
+ * genişletildi, P23-M7-a'da 1. durum native'e taşındı (Build/P23-Mobile.md →
+ * "Stratejik karar 2026-08-04" — mobil marketplace app'i, teklif oluşturma
+ * web'e devredilmiyor):
+ *   1. eşleşti + aktif ilan var → "Sipariş Ver" (native `/product/[farmerId]/[crop]`
+ *      ekranı — P23-M6-ek'te web'e dışarı link veriyordu, artık native;
+ *      mobilde hâlâ checkout YOK, teklif oluşturma ödeme değil)
  *   2. eşleşti + aktif ilan yok → "Talep Et" (ürün adı kilitli = ing.crop)
  *   3. tarımsal ama eşleşmedi → "Talep Et" (free_text_name, sınıf=tarımsal)
  *   4. platform-dışı → "Talep Et" de var (Berkin kararı — sinyal `ingredient_class`
@@ -320,7 +321,12 @@ function IngredientCard({
             )}
             {matchedListing && (
               <Pressable
-                onPress={() => void Linking.openURL(buyerProductUrl(matchedListing.farmerId, ingredient.crop!))}
+                onPress={() =>
+                  router.push({
+                    pathname: "/product/[farmerId]/[crop]",
+                    params: { farmerId: matchedListing.farmerId, crop: ingredient.crop! },
+                  })
+                }
                 hitSlop={8}
                 className="mt-1.5 self-start rounded-full px-3 py-1.5"
                 style={{ backgroundColor: "#C8833B" }}
