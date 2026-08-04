@@ -1,34 +1,39 @@
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Image, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
+import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { formatIngredientName, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
+import { buyerProductUrl } from "@/lib/hasat/webLinks";
 import {
   useRecipeDetail,
   useRecipeAvailability,
   useRecipeShoppingList,
   useLogRecipeView,
   useIngredientMaps,
+  useMatchedListingIds,
   formatTimeBreakdown,
   formatTimer,
   needsAdvanceStart,
   DIFFICULTY_LABELS,
   type RecipeIngredientRow,
+  type MatchedListing,
 } from "@/lib/hasat/recipes";
 
 /**
- * P23-M5-b tarif detayı — Build/P23-Mobile-Visual-Spec.md'nin kapsam dışı
- * bıraktığı bir ekran (web'deki desenin doğrudan portu, bkz. "Kapsam dışı
- * bırakılanlar" tablosu). "Talep Et" bu turda YOK (görev tanımı madde 3) —
- * eşleşmeyen malzeme kartı yalnızca nötr "Hasat'ta henüz yok" rozeti
- * gösteriyor, aksiyon butonu yok. Eşleşen malzemede de "Ürüne Git" web'de
- * `/buyer/discover`'a gidiyor; mobilde o ekran M7'ye kadar yok, bu yüzden
- * kartta yalnızca fiyat/stok bilgisi salt-okunur gösteriliyor, kırık bir
- * bağlantı YOK.
+ * P23-M5-b tarif detayı, P23-M6-ek'te dört-durumlu malzeme kartı aksiyonlarıyla
+ * genişletildi (Build/P23-Mobile.md → "P23-M6-ek"):
+ *   1. eşleşti + aktif ilan var → "Sipariş Ver" (web'in `buyer.product.$farmerId.$crop`
+ *      sayfasına dışarı link — mobilde checkout yok, marketplace köprüsünün
+ *      tamamı hâlâ M7, burada yalnızca doğru yere link verildi)
+ *   2. eşleşti + aktif ilan yok → "Talep Et" (ürün adı kilitli = ing.crop)
+ *   3. tarımsal ama eşleşmedi → "Talep Et" (free_text_name, sınıf=tarımsal)
+ *   4. platform-dışı → "Talep Et" de var (Berkin kararı — sinyal `ingredient_class`
+ *      ile korunuyor, admin ısı haritası ayrı gösterir)
  */
 export default function RecipeDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -41,9 +46,11 @@ export default function RecipeDetailScreen() {
   const [servings, setServings] = useState<number | null>(null);
   const effectiveServings = servings ?? recipe?.servings ?? 4;
 
-  // Kendi taslağında ölçümleme/eşleştirme yok: `recipe_views` public korpusun
-  // hunisini ölçüyor (v_kpi_recipe_funnel), kişisel defter o huniye girmiyor;
-  // malzemelerin `crop`'u da bu akışta daima NULL (editoryal eşleştirme).
+  // Kendi taslağında ölçümleme yok: `recipe_views` public korpusun hunisini
+  // ölçüyor (v_kpi_recipe_funnel), kişisel defter o huniye girmiyor. Malzeme
+  // `crop`'u P23-M6-ek'ten beri kendi taslağında da NULL olmayabilir —
+  // deterministik trigger import anında bağlıyor, kullanıcı önizlemede
+  // düzeltebiliyor (bkz. app/import.tsx).
   useLogRecipeView(isOwn ? undefined : recipe?.id);
   const { data: availability = [] } = useRecipeAvailability(isOwn ? undefined : recipe?.id);
   const { data: shoppingList = [] } = useRecipeShoppingList(
@@ -51,6 +58,8 @@ export default function RecipeDetailScreen() {
     effectiveServings,
   );
   const { availByIngredient, shopByIngredient } = useIngredientMaps(availability, shoppingList);
+  const matchedCrops = (data?.ingredients ?? []).filter((i) => i.crop).map((i) => i.crop as string);
+  const { data: matchedListingIds } = useMatchedListingIds(matchedCrops);
 
   if (isLoading) {
     return (
@@ -162,6 +171,8 @@ export default function RecipeDetailScreen() {
               isOffline={isOffline}
               avail={availByIngredient.get(ing.id)}
               shop={shopByIngredient.get(ing.id)}
+              matchedListing={ing.crop ? matchedListingIds?.get(ing.crop) : undefined}
+              recipeId={isOwn ? undefined : recipe?.id}
             />
           ))}
         </View>
@@ -232,18 +243,30 @@ function IngredientCard({
   isOffline,
   avail,
   shop,
+  matchedListing,
+  recipeId,
 }: {
   ingredient: RecipeIngredientRow;
   isOffline: boolean;
   avail?: import("@/lib/hasat/recipes").AvailabilityRow;
   shop?: import("@/lib/hasat/recipes").ShoppingListRow;
+  matchedListing?: MatchedListing;
+  recipeId?: string;
 }) {
+  const [requestOpen, setRequestOpen] = useState(false);
   const name = formatIngredientName(ingredient.crop, avail?.crop_display_name, ingredient.free_text_name);
   const qtyLine = shop
     ? `${shop.scaled_quantity ?? shop.recipe_quantity ?? ""} ${shop.recipe_unit ?? ""}`.trim()
     : `${ingredient.quantity ?? ""} ${ingredient.unit ?? ""}`.trim();
-  const isPlatformCrop = shop?.is_platform_crop ?? !!ingredient.crop;
-  const isMatched = shop?.is_matched ?? false;
+  const isMatched = !!ingredient.crop && (shop?.is_matched ?? false);
+
+  // P23-M6-ek — dört durum:
+  //   1. eşleşti + aktif ilan var  -> "Sipariş Ver" (dış link)
+  //   2. eşleşti + aktif ilan yok  -> "Talep Et" (ürün adı kilitli = crop)
+  //   3. tarımsal ama eşleşmedi    -> "Talep Et" (serbest metin, sınıf tarımsal)
+  //   4. platform-dışı             -> "Talep Et" de var (Berkin kararı, sinyal korunuyor)
+  const requestClass = ingredient.crop ? "tarimsal" : (ingredient.ingredient_class ?? "platform_disi");
+  const requestName = ingredient.crop ?? ingredient.free_text_name ?? "";
 
   return (
     <View className="mb-2 flex-row items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -272,7 +295,7 @@ function IngredientCard({
           <Text className="mt-1 text-[11px] text-hmuted">
             Çevrimdışı — fiyat ve stok bilgisi gösterilmiyor.
           </Text>
-        ) : !isPlatformCrop ? null : isMatched ? (
+        ) : isMatched ? (
           <View className="mt-1">
             <Text className="text-[11px] text-hmuted">
               {shop?.best_price_per_canonical != null && shop?.canonical_unit && (
@@ -295,15 +318,48 @@ function IngredientCard({
             {shop?.estimated_cost != null && (
               <Text className="text-[11px] text-hmuted">Tahmini maliyet: {formatTRY(shop.estimated_cost)}</Text>
             )}
+            {matchedListing && (
+              <Pressable
+                onPress={() => void Linking.openURL(buyerProductUrl(matchedListing.farmerId, ingredient.crop!))}
+                hitSlop={8}
+                className="mt-1.5 self-start rounded-full px-3 py-1.5"
+                style={{ backgroundColor: "#C8833B" }}
+              >
+                <Text className="text-xs font-semibold text-hwhite">Sipariş Ver →</Text>
+              </Pressable>
+            )}
           </View>
         ) : (
-          // Baskın durum (68 malzemenin 54'ü) — nötr rozet, aksiyon YOK
-          // ("Talep Et" bu turda kapsam dışı, görev tanımı madde 3).
-          <View className="mt-1.5 self-start rounded-full bg-hmuted/20 px-2 py-0.5">
-            <Text className="text-[10px] font-medium text-hmuted">Hasat'ta henüz yok</Text>
+          <View className="mt-1.5 flex-row flex-wrap items-center gap-1.5">
+            <View className="self-start rounded-full bg-hmuted/20 px-2 py-0.5">
+              <Text className="text-[10px] font-medium text-hmuted">Hasat'ta henüz yok</Text>
+            </View>
+            {requestName && (
+              <Pressable
+                onPress={() => setRequestOpen(true)}
+                hitSlop={8}
+                className="rounded-full px-3 py-1.5"
+                style={{ backgroundColor: "#C8833B" }}
+              >
+                <Text className="text-xs font-semibold text-hwhite">Talep Et →</Text>
+              </Pressable>
+            )}
           </View>
         )}
       </View>
+
+      {requestName && (
+        <CropRequestSheet
+          visible={requestOpen}
+          onClose={() => setRequestOpen(false)}
+          lockCropName={!!ingredient.crop}
+          initialCropName={requestName}
+          initialQuantity={shop?.purchase_canonical ?? ingredient.quantity ?? null}
+          initialUnit={shop?.canonical_unit ?? ingredient.unit ?? null}
+          ingredientClass={requestClass}
+          recipeId={recipeId}
+        />
+      )}
     </View>
   );
 }
