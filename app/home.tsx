@@ -2,13 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { supabase } from "@/lib/supabase/client";
-import { useHasatMobileSession } from "@/lib/store/session";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { PushPermissionCard } from "@/components/hasat/PushPermissionCard";
-import { DeleteAccountModal } from "@/components/hasat/DeleteAccountModal";
 import {
   useRecipeList,
   totalRecipeMinutes,
@@ -20,11 +17,7 @@ import {
 import { useMyRecipes, SOURCE_TYPE_LABELS, type MyRecipeItem } from "@/lib/hasat/myRecipes";
 import { LOW_CONFIDENCE_THRESHOLD } from "@/lib/hasat/import";
 import { getNotificationPermission } from "@/lib/native/notifications";
-import {
-  registerPushTokenIfPermitted,
-  requestPushPermissionWithContext,
-  unregisterPushTokenOnSignOut,
-} from "@/lib/native/push";
+import { registerPushTokenIfPermitted, requestPushPermissionWithContext } from "@/lib/native/push";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -36,22 +29,23 @@ import {
  * (Build/P23-Mobile.md → "Zorunlu tasarım kuralı": public korpus = Hasat'ın
  * editoryal içeriği, kullanıcı importları = kişisel defter).
  *
- * Tam 5 sekmelik alt navigasyon (Visual-Spec → "4. Alt Navigasyon") hâlâ
- * kurulmadı: o tasarım Keşfet/Siparişlerim/Hesabım ekranlarını varsayıyor,
- * onlar M7 kapsamı. Buradaki iki sekme onun yerine geçmiyor, tarif katmanının
- * kendi içindeki ayrım.
+ * P23-M7-d: Çıkış ve Hesabımı Sil buradan (köşe metin linkleri) `/profile`'a
+ * taşındı — ikisinin yan yana durması, çıkış çalışmadığında kullanıcının
+ * yanlışlıkla hesap silmeye sürüklenmesi riski taşıyordu (bkz. TODO.md →
+ * M7-d build log). Siparişlerim de aynı turda eklendi (`/orders`, salt
+ * okunur). Tam 5 sekmelik alt navigasyon (Visual-Spec → "4. Alt Navigasyon")
+ * hâlâ kurulmadı — o tasarım ayrı bir tab bar varsayıyor (M7-b/M8 kapsamı),
+ * buradaki köşe linkleri onun yerine geçmiyor, geçici köprü.
  */
 type Tab = "public" | "mine";
 
 export default function RecipeListScreen() {
   const insets = useSafeAreaInsets();
-  const clear = useHasatMobileSession((s) => s.clear);
   const isOffline = useIsOffline();
   const [tab, setTab] = useState<Tab>("public");
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
   const mine = useMyRecipes();
   const [refreshing, setRefreshing] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // ── Push izni: bağlam kartı ────────────────────────────────────────────────
   const [showPushCard, setShowPushCard] = useState(false);
@@ -86,23 +80,6 @@ export default function RecipeListScreen() {
     }
   }, []);
 
-  const signOut = async () => {
-    await unregisterPushTokenOnSignOut();
-    await supabase.auth.signOut();
-    clear();
-  };
-
-  const afterAccountDeleted = async () => {
-    // device_tokens satırı hesap silme RPC'sinde zaten kaldırıldı —
-    // unregisterPushTokenOnSignOut() burada gereksiz (0 satır etkiler).
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // Oturum zaten hesap silme RPC'siyle geçersizleşti (auth.users scrub).
-    }
-    clear();
-  };
-
   const items = data?.items ?? [];
   const showEmptyOfflineState = isOffline && !isLoading && items.length === 0;
   const myItems = mine.data ?? [];
@@ -120,12 +97,12 @@ export default function RecipeListScreen() {
             kullanmıyor (login.tsx/index.tsx aynı desen); `lucide-react-native`
             eklemek `react-native-svg` native bağımlılığı getirir, EAS build
             kotası kısıtlıyken (bkz. M5-a-ek-2) gereksiz bir risk. */}
-        <View className="items-end">
-          <Pressable onPress={signOut} hitSlop={12} className="p-2">
-            <Text className="text-xs text-hmuted">Çıkış ✕</Text>
+        <View className="flex-row items-center gap-1">
+          <Pressable onPress={() => router.push("/orders")} hitSlop={12} className="p-2">
+            <Text className="text-xs text-hmuted">📦</Text>
           </Pressable>
-          <Pressable onPress={() => setDeleteOpen(true)} hitSlop={12} className="px-2 pb-1">
-            <Text className="text-[11px] text-hred">Hesabımı Sil</Text>
+          <Pressable onPress={() => router.push("/profile")} hitSlop={12} className="p-2">
+            <Text className="text-xs text-hmuted">👤</Text>
           </Pressable>
         </View>
       </View>
@@ -210,15 +187,6 @@ export default function RecipeListScreen() {
       >
         <Text className="font-medium text-hwhite">+ Tarif Ekle</Text>
       </Pressable>
-
-      <DeleteAccountModal
-        visible={deleteOpen}
-        onClose={() => setDeleteOpen(false)}
-        onDeleted={() => {
-          setDeleteOpen(false);
-          void afterAccountDeleted();
-        }}
-      />
     </View>
   );
 }
