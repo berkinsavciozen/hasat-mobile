@@ -65,6 +65,16 @@ export default function LoginScreen() {
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
         phone: "+90" + phoneDigits,
+        // P23-M7-d kök neden düzeltmesi: web'in `src/routes/login.tsx`'i
+        // `options.data.role`'ü `raw_user_meta_data`'ya yazıyor, `handle_new_user()`
+        // trigger'ı bunu okuyup `profiles.role`'e yazıyor (yoksa 'farmer'a
+        // düşüyor — bkz. fonksiyon tanımı). Mobil bu alanı hiç göndermiyordu,
+        // bu yüzden her yeni mobil kayıt sessizce 'farmer' oluyordu. Mobil v1
+        // yalnızca tüketici tarafı olduğu için (`_Context.md` → "Mobil v1
+        // kapsamı") burada sabit 'buyer' — web'deki gibi parametrik bir rol
+        // seçici mobilde yok, yeni bir mekanizma icat edilmedi, aynı
+        // `raw_user_meta_data.role` sözleşmesi kullanıldı (kural #106).
+        options: { data: { role: "buyer" } },
       });
       if (err) throw err;
       setStep("otp");
@@ -121,7 +131,10 @@ export default function LoginScreen() {
         city: profile.city ?? undefined,
         premium: !!profile.premium,
       });
-      router.replace("/home");
+      // Web'in `src/routes/login.tsx`'iyle aynı dal: profil adı boşsa (yeni
+      // kayıt) onboarding'e, doluysa doğrudan ana ekrana.
+      const hasProfile = !!profile.name && profile.name.trim() !== "";
+      router.replace(hasProfile ? "/home" : "/onboarding");
     } catch (e) {
       setError(translateAuthError(e as Error));
     } finally {
