@@ -2,11 +2,11 @@ import { useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
+import { RepresentativePhoto, RepresentativeBadge } from "@/components/hasat/RepresentativePhoto";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { useIsOffline } from "@/lib/net/useIsOffline";
-import { formatIngredientName, formatTRY } from "@/lib/hasat/format";
+import { formatIngredientName, formatQuantity, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import {
   useRecipeDetail,
@@ -257,8 +257,8 @@ function IngredientCard({
   const [requestOpen, setRequestOpen] = useState(false);
   const name = formatIngredientName(ingredient.crop, avail?.crop_display_name, ingredient.free_text_name);
   const qtyLine = shop
-    ? `${shop.scaled_quantity ?? shop.recipe_quantity ?? ""} ${shop.recipe_unit ?? ""}`.trim()
-    : `${ingredient.quantity ?? ""} ${ingredient.unit ?? ""}`.trim();
+    ? `${formatQuantity(shop.scaled_quantity ?? shop.recipe_quantity, shop.recipe_unit)} ${shop.recipe_unit ?? ""}`.trim()
+    : `${formatQuantity(ingredient.quantity, ingredient.unit)} ${ingredient.unit ?? ""}`.trim();
   const isMatched = !!ingredient.crop && (shop?.is_matched ?? false);
 
   // P23-M6-ek — dört durum:
@@ -271,9 +271,22 @@ function IngredientCard({
 
   return (
     <View className="mb-2 flex-row items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-      <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-lg bg-cream">
+      <View className="h-11 w-11 items-center justify-center rounded-lg bg-cream">
         {avail?.crop_photo_url ? (
-          <Image source={{ uri: avail.crop_photo_url }} className="h-11 w-11" resizeMode="cover" />
+          <>
+            {/* rounded-lg burada, üstteki View'da değil — sarmalayıcının
+                overflow-hidden'ı ⓘ tooltip'ini kırpardı (P23-M7-g). */}
+            <Image
+              source={{ uri: avail.crop_photo_url }}
+              className="h-11 w-11 rounded-lg"
+              resizeMode="cover"
+              accessibilityLabel={`${name} (temsili görsel)`}
+            />
+            {/* crop_photo_url her zaman crop_config'in stok fotoğrafı — malzeme
+                belirli bir ilana değil crop'a bağlı, her göründüğünde temsili
+                (P23-M7-g). */}
+            <RepresentativeBadge className="bottom-0 right-0" />
+          </>
         ) : (
           <Text style={{ fontSize: 20 }}>{cropEmoji(ingredient.crop)}</Text>
         )}
@@ -305,14 +318,14 @@ function IngredientCard({
                 </>
               )}
               {shop?.min_order_canonical != null && shop?.canonical_unit && (
-                <> · Min. sipariş {shop.min_order_canonical} {shop.canonical_unit}</>
+                <> · Min. sipariş {formatQuantity(shop.min_order_canonical, shop.canonical_unit)} {shop.canonical_unit}</>
               )}
               {avail && avail.active_listing_count > 0 && <> · {avail.active_listing_count} aktif ilan</>}
             </Text>
             {shop?.rounded_up_to_min_order && shop.canonical_unit && (
               <Text className="text-[11px] text-hmuted">
-                Bu tarif için {shop.needed_canonical} {shop.canonical_unit} yeterli, ama minimum
-                sipariş {shop.purchase_canonical} {shop.canonical_unit}
+                Bu tarif için {formatQuantity(shop.needed_canonical, shop.canonical_unit)} {shop.canonical_unit} yeterli, ama minimum
+                sipariş {formatQuantity(shop.purchase_canonical, shop.canonical_unit)} {shop.canonical_unit}
                 {shop.recipes_covered != null && ` — bu miktar ~${Math.round(shop.recipes_covered)} tarif yapar.`}
               </Text>
             )}

@@ -11,7 +11,7 @@ import { useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator, Linking } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { formatTRY } from "@/lib/hasat/format";
+import { formatTRY, formatQuantity } from "@/lib/hasat/format";
 import {
   useBuyerOffers,
   useBuyerOrders,
@@ -108,7 +108,7 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
         <View className="flex-1 pr-2">
           <Text className="text-base font-medium text-hwhite">{offer.crop}</Text>
           <Text className="mt-0.5 text-xs text-hmuted">
-            {offer.quantity} {offer.unit} · {offer.farmerName ?? "Üretici"}
+            {formatQuantity(offer.quantity, offer.unit)} {offer.unit} · {offer.farmerName ?? "Üretici"}
           </Text>
           <Text className="mt-1 font-mono text-sm font-semibold text-hwhite">{formatTRY(total)}</Text>
         </View>
@@ -135,7 +135,7 @@ function OrderRow({ order }: { order: BuyerOrderRow }) {
           <Text className="font-mono text-[11px] text-hmuted">{order.code}</Text>
           <Text className="mt-1 text-base font-medium text-hwhite">{order.crop}</Text>
           <Text className="mt-0.5 text-xs text-hmuted">
-            {order.quantity} {order.unit} · {order.farmerName ?? "Üretici"}
+            {formatQuantity(order.quantity, order.unit)} {order.unit} · {order.farmerName ?? "Üretici"}
           </Text>
         </View>
         <View className="items-end">

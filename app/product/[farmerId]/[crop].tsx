@@ -10,7 +10,7 @@ import { useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { formatTRY, formatCropIngredient } from "@/lib/hasat/format";
+import { formatTRY, formatCropIngredient, formatQuantity } from "@/lib/hasat/format";
 import { convertQuantity } from "@/lib/core";
 import {
   useFarmerCropListings,
@@ -215,7 +215,7 @@ export default function ProductScreen() {
               {items.length > 0 && (
                 <Text className="text-xs text-hmuted">
                   {"  "}
-                  {Number(totalQty.toFixed(2))} {canonicalUnit} · {items.length} parti
+                  {formatQuantity(totalQty, canonicalUnit)} {canonicalUnit} · {items.length} parti
                 </Text>
               )}
             </Text>
@@ -280,13 +280,13 @@ function BatchRow({
             )}
           </View>
           <Text className="mt-1 text-xs text-hmuted">
-            Mevcut {available} {listing.unit} ·{" "}
+            Mevcut {formatQuantity(available, listing.unit)} {listing.unit} ·{" "}
             <Text style={{ color: "#C8833B" }}>
               {formatTRY(listing.pricePerUnit)}/{listing.unit}
             </Text>
           </Text>
           <Text className="mt-0.5 text-[11px] text-hmuted">
-            Min. sipariş {listing.minOrder} {listing.unit}
+            Min. sipariş {formatQuantity(listing.minOrder, listing.unit)} {listing.unit}
           </Text>
         </View>
       </View>
@@ -309,7 +309,7 @@ function BatchRow({
 
       {belowMin && (
         <Text className="mt-1.5 text-[11px]" style={{ color: "#D4A843" }}>
-          Bu partide minimum sipariş {listing.minOrder} {listing.unit} — girdiğiniz miktar bunun
+          Bu partide minimum sipariş {formatQuantity(listing.minOrder, listing.unit)} {listing.unit} — girdiğiniz miktar bunun
           altında kaldığı sürece teklif gönderilemez.
         </Text>
       )}
