@@ -16,6 +16,32 @@ export function formatTRY(n: number): string {
   return TRY_FORMATTER.format(n);
 }
 
+// Web'in aynı adlı fonksiyonunun birebir kopyası (bkz. dosya başı notu) —
+// birime göre makul ondalık basamak, IEEE754 float artığını (ör.
+// `base - reserved` → 59.599999999999994) ekranda temizler (P23-M7-g).
+const QUANTITY_FRACTION_DIGITS: Record<string, number> = {
+  g: 1,
+  kg: 2,
+  L: 2,
+  adet: 0,
+};
+const QUANTITY_FORMATTERS = new Map<number, Intl.NumberFormat>();
+
+function quantityFormatter(maximumFractionDigits: number): Intl.NumberFormat {
+  let f = QUANTITY_FORMATTERS.get(maximumFractionDigits);
+  if (!f) {
+    f = new Intl.NumberFormat("tr-TR", { maximumFractionDigits });
+    QUANTITY_FORMATTERS.set(maximumFractionDigits, f);
+  }
+  return f;
+}
+
+export function formatQuantity(qty: number | null | undefined, unit: string | null | undefined): string {
+  if (qty == null || !Number.isFinite(qty)) return qty == null ? "" : String(qty);
+  const digits = QUANTITY_FRACTION_DIGITS[unit ?? ""] ?? 2;
+  return quantityFormatter(digits).format(qty);
+}
+
 /** "1 bardak ceviz" gibi cümle-içi kullanım için küçük harf crop adı. */
 export function formatCropIngredient(slug: string | null | undefined): string {
   if (!slug) return "—";
