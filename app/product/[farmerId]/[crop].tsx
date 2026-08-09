@@ -23,6 +23,9 @@ import {
   offsetToIsoDate,
   type FarmerCropListing,
 } from "@/lib/hasat/offers";
+import { useCropDefaultPhoto, resolveListingPhoto } from "@/lib/hasat/crop-photo";
+import { cropEmoji } from "@/lib/hasat/crop-emoji";
+import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 
 export default function ProductScreen() {
   const insets = useSafeAreaInsets();
@@ -37,6 +40,7 @@ export default function ProductScreen() {
 
   const items = useOfferItems(listings, selected);
   const { data: canonicalUnit = listings[0]?.unit ?? "kg" } = useCropCanonicalUnit(crop, listings[0]?.unit);
+  const { data: cropDefaultPhoto = null } = useCropDefaultPhoto(crop);
   const totalQty = items.reduce((s, i) => {
     const l = listings.find((x) => x.id === i.listingId);
     return s + convertQuantity(i.quantity, l?.unit ?? canonicalUnit, canonicalUnit);
@@ -77,6 +81,8 @@ export default function ProductScreen() {
 
   const first = listings[0];
   const canSubmit = items.length > 0 && deliveryDays != null && belowMinListingIds.size === 0;
+  const realPhoto = listings.find((l) => l.photoUrls.length > 0)?.photoUrls[0] ?? null;
+  const { photoUrl, isRepresentative } = resolveListingPhoto(realPhoto ? [realPhoto] : [], cropDefaultPhoto);
 
   const submit = async () => {
     setSubmitError(null);
@@ -113,6 +119,14 @@ export default function ProductScreen() {
             {listings.length} parti mevcut — istediğin partilerden miktar seç, tek teklif gönder.
           </Text>
         </View>
+
+        <RepresentativePhoto
+          src={photoUrl}
+          isRepresentative={isRepresentative}
+          alt={formatCropIngredient(first.crop)}
+          placeholderEmoji={cropEmoji(first.crop)}
+          style={{ height: 176, marginTop: 16 }}
+        />
 
         <View className="mt-4 gap-3 px-5">
           {listings.map((l, idx) => (
