@@ -36,6 +36,7 @@ export interface FarmerCropListing {
   farmerId: string;
   farmerName: string;
   farmerCity: string | null;
+  photoUrls: string[];
 }
 
 export function useFarmerCropListings(farmerId: string | undefined, crop: string | undefined) {
@@ -46,7 +47,7 @@ export function useFarmerCropListings(farmerId: string | undefined, crop: string
       const [{ data, error }, { data: profile }] = await Promise.all([
         supabase
           .from("listings")
-          .select("id, crop, unit, price_per_unit, min_order, quantity, batch_name, quality, farmer_id")
+          .select("id, crop, unit, price_per_unit, min_order, quantity, batch_name, quality, farmer_id, photo_urls")
           .eq("farmer_id", farmerId!)
           .eq("status", "active")
           .ilike("crop", crop!)
@@ -66,6 +67,7 @@ export function useFarmerCropListings(farmerId: string | undefined, crop: string
         farmerId: r.farmer_id,
         farmerName: profile?.name ?? "Üretici",
         farmerCity: profile?.city ?? null,
+        photoUrls: r.photo_urls ?? [],
       }));
     },
   });
