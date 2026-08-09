@@ -1,0 +1,96 @@
+name: EAS TestFlight Build (iOS)
+
+# Yalnızca elle tetiklenir — otomatik tetikleyici (push/PR/schedule) YOK.
+# `eas-build-simulator.yml`'in kardeşi: aynı kota-koruma mantığı, farklı
+# profil. Bu workflow iOS Simulator DEĞİL, gerçek cihaza TestFlight
+# üzerinden kurulacak bir prodüksiyon-imzalı build üretir
+# (`eas.json` → `ios-testflight` profili, `distribution: "store"`).
+#
+# Kota koruması (bkz. hasat-vault TODO.md → "P23-M8-a"):
+# Expo'nun ücretsiz katmanı ayda 30 build'e izin veriyor (iOS için bunların
+# en fazla 15'i, bu iki workflow AYNI 15'lik havuzu paylaşıyor), kuyrukta
+# bekleme süresi 90 dakikayı aşabiliyor, ve her BAŞARISIZ deneme de
+# kotadan düşüyor. Bu yüzden bu workflow da yalnızca elle, `app.json` ve
+# Apple kimlik bilgileri (bundle ID kaydı + Push Notifications capability +
+# APNs anahtarı EAS'a yüklü) hazırken çalıştırılmalıdır.
+#
+# Bu workflow yalnızca BUILD yapar, App Store Connect'e SUBMIT etmez.
+# Submit ayrı, tek seferlik bir adım — Berkin'in terminalinden
+# `eas submit -p ios --profile ios-testflight --latest` (interaktif Apple
+# kimlik doğrulaması gerektiriyor, bu yüzden Actions'tan tetiklenemiyor;
+# detay: hasat-vault TODO.md → "P23-M8-a" build log).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-testflight:
+    name: iOS TestFlight Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Expo + EAS CLI kurulumu
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Bağımlılıkları kur (npm ci)
+        run: npm ci
+
+      - name: EAS TestFlight build (iOS, non-interactive)
+        run: |
+          eas build --profile ios-testflight --platform ios --non-interactive --json > eas-build-output.json
+          cat eas-build-output.json
+
+      - name: Artifact linkini özet sayfasına yaz
+        if: always()
+        run: |
+          ARTIFACT_URL=""
+          if [ -f eas-build-output.json ]; then
+            ARTIFACT_URL=$(node -e "
+              try {
+                const raw = require('fs').readFileSync('eas-build-output.json', 'utf8');
+                const data = JSON.parse(raw);
+                const build = Array.isArray(data) ? data[0] : data;
+                const url = build?.artifacts?.buildUrl
+                  || build?.artifacts?.applicationArchiveUrl
+                  || build?.buildDetailsPageUrl
+                  || build?.url
+                  || '';
+                console.log(url);
+              } catch (e) {
+                console.log('');
+              }
+            ")
+          fi
+
+          {
+            echo '## 📱 EAS TestFlight Build (iOS)'
+            echo ''
+            if [ -n "$ARTIFACT_URL" ]; then
+              echo "**Build detay linki:** $ARTIFACT_URL"
+            else
+              echo '⚠️ Artifact linki `--json` çıktısından otomatik çıkarılamadı.'
+              echo ''
+              echo 'Expo panosunda Projects → hasat-mobile (proje ID: `bff1a47c-41d5-42fa-bddc-83320c079253`) → Builds sekmesinden en son build'"'"'i bul.'
+            fi
+            echo ''
+            echo '**Sonraki adım (Berkin, terminalden, tek seferlik):**'
+            echo '```'
+            echo 'eas submit -p ios --profile ios-testflight --latest'
+            echo '```'
+            echo 'İlk çalıştırmada Apple ID / App Store Connect API key soracak (interaktif) — App Store Connect'"'"'te "Hasat-AI" uygulaması zaten var, bundle ID `com.hasat.app` ile otomatik eşleşmeli. Submit tamamlanınca build App Store Connect'"'"'te işlenip (genelde birkaç dk – yarım saat) TestFlight sekmesinde görünür; Berkin kendi hesabını internal tester olarak eklemeli (bkz. hasat-vault TODO.md → "P23-M8-a" adım adım liste).'
+            echo ''
+            echo '---'
+            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build (iOS'"'"'de en fazla 15, `eas-build-simulator.yml` ile PAYLAŞILAN havuz) — başarısız denemeler de düşer. Bu workflow'"'"'u sadece gerçekten bir TestFlight build'"'"'ine ihtiyacın olduğunda çalıştır._'
+          } >> "$GITHUB_STEP_SUMMARY"
