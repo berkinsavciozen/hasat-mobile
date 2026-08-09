@@ -1,0 +1,89 @@
+name: EAS Android Device Build (APK)
+
+# Yalnızca elle tetiklenir — otomatik tetikleyici (push/PR/schedule) YOK.
+# Android'de iOS'taki UDID kaydı/TestFlight süreci karşılığı yok: bu
+# workflow doğrudan cihaza kurulabilen bir APK üretir (`eas.json` →
+# `android-device` profili, `distribution: "internal"`, `buildType: "apk"`).
+# Play Store/Console gerekmiyor — Berkin build bitince linkten APK'yı
+# telefonuna indirip kurabiliyor ("bilinmeyen kaynaklardan kurulum" izni
+# gerekebilir, Android sürümüne göre).
+#
+# Kota koruması: bu workflow Android tarafında sayılır — Expo ücretsiz
+# katmanının "ayda 30 build" toplam kotasına düşer (iOS'a özel 15'lik alt
+# limitin DIŞINDA, o yüzden bu workflow iOS build'lerinin kotasını
+# tüketmiyor). Yine de her BAŞARISIZ deneme kotadan düşüyor — `app.json`
+# eksiksiz olmadan (özellikle Firebase kurulumu tamamlanmadan
+# `google-services.json` yokken) push testi için tetiklenmemeli; push
+# olmadan genel UI/uçak modu/timer testi için dosya eksikliği build'i
+# engellemez (yalnızca push token alma o cihazda başarısız olur).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android-device:
+    name: Android Device Build (APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repo checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Expo + EAS CLI kurulumu
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Bağımlılıkları kur (npm ci)
+        run: npm ci
+
+      - name: EAS Android device build (APK, non-interactive)
+        run: |
+          eas build --profile android-device --platform android --non-interactive --json > eas-build-output.json
+          cat eas-build-output.json
+
+      - name: Artifact linkini özet sayfasına yaz
+        if: always()
+        run: |
+          ARTIFACT_URL=""
+          if [ -f eas-build-output.json ]; then
+            ARTIFACT_URL=$(node -e "
+              try {
+                const raw = require('fs').readFileSync('eas-build-output.json', 'utf8');
+                const data = JSON.parse(raw);
+                const build = Array.isArray(data) ? data[0] : data;
+                const url = build?.artifacts?.buildUrl
+                  || build?.artifacts?.applicationArchiveUrl
+                  || build?.buildDetailsPageUrl
+                  || build?.url
+                  || '';
+                console.log(url);
+              } catch (e) {
+                console.log('');
+              }
+            ")
+          fi
+
+          {
+            echo '## 🤖 EAS Android Device Build (APK)'
+            echo ''
+            if [ -n "$ARTIFACT_URL" ]; then
+              echo "**APK indirme linki:** $ARTIFACT_URL"
+              echo ''
+              echo 'Telefonda bu linki aç → APK'"'"'ı indir → kur (Android bilinmeyen kaynak izni isteyebilir).'
+            else
+              echo '⚠️ Artifact linki `--json` çıktısından otomatik çıkarılamadı.'
+              echo ''
+              echo 'Expo panosunda Projects → hasat-mobile (proje ID: `bff1a47c-41d5-42fa-bddc-83320c079253`) → Builds sekmesinden en son build'"'"'i bul.'
+            fi
+            echo ''
+            echo '---'
+            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build toplam (bu workflow iOS'"'"'in 15'"'"'lik alt limitine dahil değil). Push testi için önce Firebase/FCM kurulumunun tamamlandığından emin ol (bkz. hasat-vault TODO.md → "P23-M8-a")._'
+          } >> "$GITHUB_STEP_SUMMARY"

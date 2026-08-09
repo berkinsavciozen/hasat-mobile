@@ -9,6 +9,20 @@
       "ios": {
         "simulator": true
       }
+    },
+    "ios-testflight": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "ios": {
+        "simulator": false
+      }
+    },
+    "android-device": {
+      "distribution": "internal",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }
