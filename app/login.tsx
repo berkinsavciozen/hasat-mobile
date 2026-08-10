@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase/client";
 import { useHasatMobileSession } from "@/lib/store/session";
+import { takePendingSessionMessage } from "@/lib/hasat/sessionGuard";
 
 /**
  * Telefon OTP girişi — web'deki akışın aynısı (`src/routes/login.tsx`):
@@ -47,6 +48,15 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(30);
   const inputsRef = useRef<(TextInput | null)[]>([]);
+
+  // P23-M8-b — silinmiş/yasaklı bir hesabın oturumu bir şekilde canlı
+  // kalıp da sessionGuard tarafından zorla kapatıldığında ("banned_until
+  // nedeniyle her istek reddedilecek, uygulama bunu anlamlı bir mesajla
+  // karşılamalı" — bkz. sessionGuard.ts) burada gösterilir.
+  useEffect(() => {
+    const msg = takePendingSessionMessage();
+    if (msg) setError(msg);
+  }, []);
 
   useEffect(() => {
     if (step !== "otp") return;

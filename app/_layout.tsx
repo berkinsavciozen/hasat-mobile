@@ -7,7 +7,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { View, ActivityIndicator } from "react-native";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
-import { configureNotifications } from "@/lib/native/notifications";
+import { configureNotifications, attachNotificationTapRouting } from "@/lib/native/notifications";
+import { installSessionGuard } from "@/lib/hasat/sessionGuard";
 
 export default function RootLayout() {
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -17,6 +18,17 @@ export default function RootLayout() {
   // yalnızca uygulama açılışında handler ve kanalları kurar.
   useEffect(() => {
     configureNotifications();
+  }, []);
+
+  // P23-M8-b: uzak push bildirimine dokunma → ilgili ekrana yönlendirme.
+  useEffect(() => {
+    attachNotificationTapRouting();
+  }, []);
+
+  // P23-M8-b: merkezi oturum temizliği + "silinmiş/yasaklı hesabın oturumu
+  // canlı kalırsa" güvenlik ağı — bkz. sessionGuard.ts dosya başlığı notu.
+  useEffect(() => {
+    installSessionGuard();
   }, []);
 
   useEffect(() => {
