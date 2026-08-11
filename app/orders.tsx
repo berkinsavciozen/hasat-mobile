@@ -7,9 +7,10 @@
 // RLS: `offers`/`orders` SELECT politikaları zaten `buyer_id = auth.uid()`
 // ile taraf-bazlı — web'in kullandığı aynı politika, burada yeni bir
 // politika yazılmadı.
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, Pressable, FlatList, ActivityIndicator, Linking } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatTRY, formatQuantity } from "@/lib/hasat/format";
 import {
@@ -29,6 +30,24 @@ export default function OrdersScreen() {
   const [tab, setTab] = useState<Tab>("offers");
   const { data: offers = [], isLoading: offersLoading } = useBuyerOffers();
   const { data: orders = [], isLoading: ordersLoading } = useBuyerOrders();
+
+  // P23-M8-b-2 — sipariş durumu web↔mobil senkron değildi: web'de ödemesi
+  // onaylanan bir sipariş mobilde güncellenmiyordu. Web tarafı realtime
+  // subscription kullanıyor (`useRealtimeSync`, `hasat-d2c-marketplace/src/
+  // lib/hasat/queries.ts`); mobilde bu ekranın ne realtime ne öne gelince
+  // yeniden çekme mekanizması vardı — ikisi de yoktu. Web'in websocket
+  // kanalını mobile taşımak arka plana alındığında bağlantının düşmesi/geri
+  // gelmesi riskini (aynı auth-refresh ailesi bug'ı) ekliyor; bunun yerine
+  // ekran her odaklandığında (sekmeye geçiş, arka plandan dönüş) mevcut
+  // sorgu hook'larını invalidate ediyoruz — TanStack Query'nin zaten
+  // desteklediği bir mekanizma, yeni bir mimari değil.
+  const queryClient = useQueryClient();
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["buyerOffersReadonly"] });
+      queryClient.invalidateQueries({ queryKey: ["buyerOrdersReadonly"] });
+    }, [queryClient]),
+  );
 
   return (
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
@@ -100,7 +119,14 @@ export default function OrdersScreen() {
 function OfferRow({ offer }: { offer: BuyerOfferRow }) {
   const status = offerStatusLabel(offer);
   const total = offer.quantity * offer.pricePerUnit;
-  const needsWebAction = offer.ballSide === "buyer" && (offer.status === "pending" || offer.status === "counter");
+  const needsResponse = offer.ballSide === "buyer" && (offer.status === "pending" || offer.status === "counter");
+  // P23-M8-b-2 — eksik CTA: "Ödeme bekleniyor" (status=accepted, henüz
+  // ödenmemiş) durumunda "yanıtınız bekleniyor" durumuyla aynı desende bir
+  // web yönlendirme butonu yoktu. Mobil v1'de ödeme yok (Build/P23-Mobile.md
+  // → "Mobil v1 kapsam kararı — checkout YOK"), ödeme aynı web sayfasında
+  // (`/buyer/negotiation/$offerId`) tamamlanıyor — aynı link, aynı desen.
+  const needsPayment = offer.status === "accepted" && offer.paymentStatus !== "paid";
+  const needsWebAction = needsResponse || needsPayment;
 
   return (
     <View className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -119,7 +145,9 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
           onPress={() => Linking.openURL(`${WEB_APP_URL}/buyer/negotiation/${offer.id}`)}
           className="mt-3 items-center rounded-lg border border-saffron py-2.5"
         >
-          <Text className="text-xs font-medium text-saffron">Web'de Yanıtla →</Text>
+          <Text className="text-xs font-medium text-saffron">
+            {needsPayment ? "Web'de Öde →" : "Web'de Yanıtla →"}
+          </Text>
         </Pressable>
       )}
     </View>
