@@ -15,6 +15,22 @@ const DB_NAME = "hasat-recipe-cache.db";
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
+/** P23-M8-b — çıkış/hesap silme akışlarının tam temizlik listesinde
+ * ("Supabase signOut, LargeSecureStore, device_tokens, TanStack Query cache,
+ * offline sqlite önbelleği") istenen parça. Not: bu önbellek yalnızca
+ * editoryal/genel tarif verisi tutuyor (yukarıdaki dosya başlığı notu) —
+ * kullanıcıya özel değil, temizlik bir gizlilik gereği değil, tutarlı bir
+ * "çıkış = temiz durum" davranışı içindir. */
+export async function clearRecipeCache(): Promise<void> {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM cached_recipe_steps");
+    await db.runAsync("DELETE FROM cached_recipe_ingredients");
+    await db.runAsync("DELETE FROM cached_recipe_detail_meta");
+    await db.runAsync("DELETE FROM cached_recipes");
+  });
+}
+
 export function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!dbPromise) {
     dbPromise = SQLite.openDatabaseAsync(DB_NAME).then(async (db) => {

@@ -24,5 +24,13 @@
         "buildType": "apk"
       }
     }
+  },
+  "submit": {
+    "ios-testflight": {
+      "ios": {
+        "appleId": "berkinsavciozen@gmail.com",
+        "appleTeamId": "XM562PFC7F"
+      }
+    }
   }
 }
