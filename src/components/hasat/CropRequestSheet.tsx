@@ -7,6 +7,8 @@ import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from "reac
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCreateCropRequest } from "@/lib/hasat/cropRequests";
 import type { IngredientClass } from "@/lib/hasat/import";
+import { useHasatMobileSession } from "@/lib/store/session";
+import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 
 export function CropRequestSheet({
   visible,
@@ -28,6 +30,7 @@ export function CropRequestSheet({
   recipeId?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const role = useHasatMobileSession((s) => s.role);
   const create = useCreateCropRequest();
   const [cropName, setCropName] = useState(initialCropName);
   const [quantity, setQuantity] = useState(initialQuantity != null ? String(initialQuantity) : "");
@@ -64,7 +67,22 @@ export function CropRequestSheet({
           className="rounded-t-2xl bg-dark px-5"
           style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
         >
-          {done ? (
+          {role === "farmer" ? (
+            // P23-M8-c (T2): "Talep Et" alıcıya özel — çiftçi hesabıyla
+            // girişte form yerine web/WhatsApp yönlendirmesi gösteriliyor
+            // (bkz. FarmerRedirectNotice dosya başı notu).
+            <>
+              <View className="mb-3 flex-row items-center justify-between">
+                <Text className="text-base font-medium text-hwhite">Talep Et</Text>
+                <Pressable onPress={close} hitSlop={12}>
+                  <Text className="text-xl text-hwhite">✕</Text>
+                </Pressable>
+              </View>
+              <View className="items-center py-4">
+                <FarmerRedirectNotice />
+              </View>
+            </>
+          ) : done ? (
             <View className="items-center py-6">
               <Text style={{ fontSize: 34 }}>✅</Text>
               <Text className="mt-3 text-center text-sm text-hwhite">

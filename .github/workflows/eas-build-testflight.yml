@@ -1,4 +1,4 @@
-name: EAS TestFlight Build (iOS)
+name: EAS TestFlight Build + Submit (iOS)
 
 # Yalnızca elle tetiklenir — otomatik tetikleyici (push/PR/schedule) YOK.
 # `eas-build-simulator.yml`'in kardeşi: aynı kota-koruma mantığı, farklı
@@ -12,20 +12,25 @@ name: EAS TestFlight Build (iOS)
 # bekleme süresi 90 dakikayı aşabiliyor, ve her BAŞARISIZ deneme de
 # kotadan düşüyor. Bu yüzden bu workflow da yalnızca elle, `app.json` ve
 # Apple kimlik bilgileri (bundle ID kaydı + Push Notifications capability +
-# APNs anahtarı EAS'a yüklü) hazırken çalıştırılmalıdır.
+# APNs anahtarı EAS'a yüklü) hazırken çalıştırılmalıdır. (Submit adımı bu
+# kotaya dahil değil — yalnızca build'ler sayılıyor.)
 #
-# Bu workflow yalnızca BUILD yapar, App Store Connect'e SUBMIT etmez.
-# Submit ayrı, tek seferlik bir adım — Berkin'in terminalinden
-# `eas submit -p ios --profile ios-testflight --latest` (interaktif Apple
-# kimlik doğrulaması gerektiriyor, bu yüzden Actions'tan tetiklenemiyor;
-# detay: hasat-vault TODO.md → "P23-M8-a" build log).
+# P23-M8-c: build + submit artık AYNI iş akışında. App Store Connect API
+# Key EAS'a kayıtlı (Team Keys, Admin erişim, Key ID `TGL8Z9MNTT`) —
+# `eas submit --non-interactive` bu sayede Apple kimlik doğrulaması
+# istemeden çalışıyor (Berkin'in terminalinde doğrulandı). `eas.json` →
+# `submit.ios-testflight.ios.ascAppId` (`6798678884`, App Store Connect'teki
+# Hasat-AI'ın Apple ID'si) dolduruldu — non-interactive submit'in uygulamayı
+# bundle ID'den aramaya çalışıp Apple'a etkileşimli sorup takılmaması için
+# gerekli. Önceki sürümde submit ayrı, tek seferlik bir terminal adımıydı;
+# artık aynı "Run workflow" tetiklemesiyle build biter bitmez submit ediliyor.
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-testflight:
-    name: iOS TestFlight Build
+  build-and-submit-testflight:
+    name: iOS TestFlight Build + Submit
     runs-on: ubuntu-latest
     steps:
       - name: Repo checkout
@@ -52,6 +57,10 @@ jobs:
           eas build --profile ios-testflight --platform ios --non-interactive --json > eas-build-output.json
           cat eas-build-output.json
 
+      - name: EAS TestFlight submit (iOS, non-interactive)
+        run: |
+          eas submit --profile ios-testflight --platform ios --non-interactive --latest
+
       - name: Artifact linkini özet sayfasına yaz
         if: always()
         run: |
@@ -75,7 +84,7 @@ jobs:
           fi
 
           {
-            echo '## 📱 EAS TestFlight Build (iOS)'
+            echo '## 📱 EAS TestFlight Build + Submit (iOS)'
             echo ''
             if [ -n "$ARTIFACT_URL" ]; then
               echo "**Build detay linki:** $ARTIFACT_URL"
@@ -85,12 +94,10 @@ jobs:
               echo 'Expo panosunda Projects → hasat-mobile (proje ID: `bff1a47c-41d5-42fa-bddc-83320c079253`) → Builds sekmesinden en son build'"'"'i bul.'
             fi
             echo ''
-            echo '**Sonraki adım (Berkin, terminalden, tek seferlik):**'
-            echo '```'
-            echo 'eas submit -p ios --profile ios-testflight --latest'
-            echo '```'
-            echo 'İlk çalıştırmada Apple ID / App Store Connect API key soracak (interaktif) — App Store Connect'"'"'te "Hasat-AI" uygulaması zaten var, bundle ID `com.hasat.app` ile otomatik eşleşmeli. Submit tamamlanınca build App Store Connect'"'"'te işlenip (genelde birkaç dk – yarım saat) TestFlight sekmesinde görünür; Berkin kendi hesabını internal tester olarak eklemeli (bkz. hasat-vault TODO.md → "P23-M8-a" adım adım liste).'
+            echo '**Submit:** Build biter bitmez aynı işte `eas submit --profile ios-testflight --non-interactive --latest` çalıştı — App Store Connect API Key (Team Keys, Key ID `TGL8Z9MNTT`) sayesinde etkileşimli Apple kimlik doğrulaması gerekmedi. Bu adım başarısız olduysa yukarıdaki "EAS TestFlight submit" step logunu kontrol et.'
+            echo ''
+            echo 'Submit kabul edilirse Apple tarafında işlenmesi (genelde birkaç dk – yarım saat) sürer, sonra TestFlight sekmesinde görünür; Berkin kendi hesabını internal tester olarak eklemeli (bkz. hasat-vault TODO.md → "P23-M8-a" adım adım liste).'
             echo ''
             echo '---'
-            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build (iOS'"'"'de en fazla 15, `eas-build-simulator.yml` ile PAYLAŞILAN havuz) — başarısız denemeler de düşer. Bu workflow'"'"'u sadece gerçekten bir TestFlight build'"'"'ine ihtiyacın olduğunda çalıştır._'
+            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build (iOS'"'"'de en fazla 15, `eas-build-simulator.yml` ile PAYLAŞILAN havuz) — başarısız denemeler de düşer, submit bu kotaya dahil değil. Bu workflow'"'"'u sadece gerçekten bir TestFlight build'"'"'ine ihtiyacın olduğunda çalıştır._'
           } >> "$GITHUB_STEP_SUMMARY"
