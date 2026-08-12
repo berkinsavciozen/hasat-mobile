@@ -22,11 +22,14 @@ import {
   type BuyerOrderRow,
 } from "@/lib/hasat/orders";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
+import { useHasatMobileSession } from "@/lib/store/session";
+import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 
 type Tab = "offers" | "orders";
 
 export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
+  const role = useHasatMobileSession((s) => s.role);
   const [tab, setTab] = useState<Tab>("offers");
   const { data: offers = [], isLoading: offersLoading } = useBuyerOffers();
   const { data: orders = [], isLoading: ordersLoading } = useBuyerOrders();
@@ -48,6 +51,25 @@ export default function OrdersScreen() {
       queryClient.invalidateQueries({ queryKey: ["buyerOrdersReadonly"] });
     }, [queryClient]),
   );
+
+  // P23-M8-c (T2): Siparişlerim alıcıya özel bir akış — çiftçi hesabıyla
+  // girişte buraya erişim kapatılıp web/WhatsApp'a yönlendirme gösteriliyor
+  // (bkz. FarmerRedirectNotice dosya başı notu).
+  if (role === "farmer") {
+    return (
+      <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
+        <View className="flex-row items-center px-6 pb-3 pt-2">
+          <Pressable onPress={() => router.back()} hitSlop={12} className="mr-3">
+            <Text className="text-xl text-hwhite">←</Text>
+          </Pressable>
+          <Text className="font-serif text-xl font-bold text-hwhite">Siparişlerim</Text>
+        </View>
+        <View className="flex-1 items-center justify-center px-8">
+          <FarmerRedirectNotice />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>

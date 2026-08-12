@@ -26,9 +26,12 @@ import {
 import { useCropDefaultPhoto, resolveListingPhoto } from "@/lib/hasat/crop-photo";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
+import { useHasatMobileSession } from "@/lib/store/session";
+import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 
 export default function ProductScreen() {
   const insets = useSafeAreaInsets();
+  const role = useHasatMobileSession((s) => s.role);
   const { farmerId, crop } = useLocalSearchParams<{ farmerId: string; crop: string }>();
   const { data: listings = [], isLoading } = useFarmerCropListings(farmerId, crop);
   const [selected, setSelected] = useState<Record<string, number>>({});
@@ -37,6 +40,20 @@ export default function ProductScreen() {
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const createOffer = useCreateOffer();
+
+  // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
+  // (deep link dahil) buraya erişim kapatılıp web/WhatsApp'a yönlendirme
+  // gösteriliyor (bkz. FarmerRedirectNotice dosya başı notu).
+  if (role === "farmer") {
+    return (
+      <View
+        className="flex-1 items-center justify-center bg-dark px-8"
+        style={{ paddingTop: insets.top }}
+      >
+        <FarmerRedirectNotice />
+      </View>
+    );
+  }
 
   const items = useOfferItems(listings, selected);
   const { data: canonicalUnit = listings[0]?.unit ?? "kg" } = useCropCanonicalUnit(crop, listings[0]?.unit);

@@ -29,7 +29,8 @@
     "ios-testflight": {
       "ios": {
         "appleId": "berkinsavciozen@gmail.com",
-        "appleTeamId": "XM562PFC7F"
+        "appleTeamId": "XM562PFC7F",
+        "ascAppId": "6798678884"
       }
     }
   }
