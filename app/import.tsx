@@ -11,17 +11,7 @@
 // bitmiş yemek fotoğrafından tahmin. Bu ekranda böyle bir giriş YOK; edge
 // function da `mode` olarak yalnızca 'text'/'photo' kabul ediyor.
 import { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -32,6 +22,7 @@ import {
   saveDraft,
   discardDraft,
   newKey,
+  uploadStepPhoto,
   ImportError,
   LOW_CONFIDENCE_THRESHOLD,
   type RecipeDraft,
@@ -40,6 +31,8 @@ import {
 import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { CropPickerModal } from "@/components/hasat/CropPickerModal";
+import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { useHasatMobileSession } from "@/lib/store/session";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -58,6 +51,11 @@ export default function ImportScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [cropPickerForKey, setCropPickerForKey] = useState<string | null>(null);
+  // P23-M8-d (T4) — adım fotoğrafı yüklenirken hangi adımın "yükleniyor"
+  // durumunda olduğunu tutuyor (aynı anda yalnızca bir adım fotoğrafı
+  // seçilebilir, ImagePicker zaten modal — çakışma riski yok).
+  const [uploadingStepKey, setUploadingStepKey] = useState<string | null>(null);
+  const userId = useHasatMobileSession((s) => s.user?.id);
 
   const run = useCallback(
     async (input: { mode: "text" | "photo"; text?: string; base64?: string; mime?: string }) => {
@@ -127,6 +125,47 @@ export default function ImportScreen() {
     [run],
   );
 
+  // P23-M8-d (T4) — bulgu S33 adım 25 (nice-to-have): AI import sonrası
+  // adımları elle düzenlerken her adıma opsiyonel bir fotoğraf ekleyebilme.
+  // Galeriden seçilen fotoğraf hemen `recipe-step-photos`'a yüklenir ve
+  // taslağa kalıcı URL olarak yazılır (yerel `file://` URI saklanmaz).
+  const pickStepPhoto = useCallback(
+    async (stepKey: string) => {
+      setError(null);
+      if (!draft) return;
+      if (!userId) {
+        setError("Oturum bulunamadı. Fotoğraf eklemek için tekrar giriş yapmalısın.");
+        return;
+      }
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError("Galeri izni verilmedi. Adım fotoğrafı eklemek için izin gerekiyor.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.5,
+        allowsEditing: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      setUploadingStepKey(stepKey);
+      try {
+        const url = await uploadStepPhoto(userId, draft.recipeId, result.assets[0].uri);
+        setDraft((d) =>
+          d
+            ? { ...d, steps: d.steps.map((s) => (s.key === stepKey ? { ...s, photoUrl: url } : s)) }
+            : d,
+        );
+      } catch (e) {
+        console.error("[import] adım fotoğrafı yüklenemedi", e);
+        setError("Fotoğraf yüklenemedi. Tekrar dener misin?");
+      } finally {
+        setUploadingStepKey(null);
+      }
+    },
+    [draft, userId],
+  );
+
   const close = useCallback(async () => {
     // Taslak kaydedilmeden çıkılıyorsa silinir — yarım/bozuk bir kayıt
     // defterde birikmemeli.
@@ -192,10 +231,7 @@ export default function ImportScreen() {
     const lowConfidence =
       draft.extractionConfidence != null && draft.extractionConfidence < LOW_CONFIDENCE_THRESHOLD;
     return (
-      <KeyboardAvoidingView
-        className="flex-1 bg-dark"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
         <View
           className="flex-row items-center justify-between border-b border-white/10 px-5 pb-3"
           style={{ paddingTop: insets.top + 8 }}
@@ -414,7 +450,10 @@ export default function ImportScreen() {
             onAdd={() =>
               setDraft({
                 ...draft,
-                steps: [...draft.steps, { key: newKey("step"), instruction: "", timerMinutes: "" }],
+                steps: [
+                  ...draft.steps,
+                  { key: newKey("step"), instruction: "", timerMinutes: "", photoUrl: null },
+                ],
               })
             }
           />
@@ -469,21 +508,48 @@ export default function ImportScreen() {
                   Girersen pişirme modunda geri sayım olur.
                 </Text>
               </View>
+              <View className="mt-2 flex-row items-center gap-2">
+                {s.photoUrl ? (
+                  <>
+                    <Image source={{ uri: s.photoUrl }} className="h-14 w-14 rounded-lg" resizeMode="cover" />
+                    <Pressable
+                      onPress={() => {
+                        const next = [...draft.steps];
+                        next[i] = { ...s, photoUrl: null };
+                        setDraft({ ...draft, steps: next });
+                      }}
+                      hitSlop={10}
+                    >
+                      <Text className="text-[11px] text-hmuted">Fotoğrafı kaldır</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable
+                    onPress={() => void pickStepPhoto(s.key)}
+                    disabled={uploadingStepKey === s.key}
+                    hitSlop={10}
+                    className="rounded-full border border-white/15 px-2.5 py-1"
+                  >
+                    {uploadingStepKey === s.key ? (
+                      <ActivityIndicator size="small" color="#C8833B" />
+                    ) : (
+                      <Text className="text-[11px] text-hmuted">+ Fotoğraf ekle (opsiyonel)</Text>
+                    )}
+                  </Pressable>
+                )}
+              </View>
             </View>
           ))}
 
           {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoidingScreen>
     );
   }
 
   // ── 3a — Kaynak seçimi / metin girişi ─────────────────────────────────────
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-dark"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
       <View
         className="flex-row items-center gap-3 px-5 pb-3"
         style={{ paddingTop: insets.top + 8 }}
@@ -574,7 +640,7 @@ export default function ImportScreen() {
 
         {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingScreen>
   );
 }
 

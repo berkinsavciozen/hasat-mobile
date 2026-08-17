@@ -1,18 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Platform } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase/client";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { takePendingSessionMessage } from "@/lib/hasat/sessionGuard";
+import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 
 /**
  * Telefon OTP girişi — web'deki akışın aynısı (`src/routes/login.tsx`):
@@ -102,11 +95,29 @@ export default function LoginScreen() {
   };
 
   const handleOtpChange = (i: number, val: string) => {
-    const digit = val.replace(/\D/g, "").slice(-1);
+    const digits = val.replace(/\D/g, "");
+    // P23-M8-d (T4) — bulgu S33 adım 43: iOS'un SMS'ten önerdiği koda
+    // dokunulduğunda kodun TAMAMI odaklanılan tek kutuya birden geliyordu;
+    // eski kod yalnızca son haneyi alıp (`slice(-1)`) geri kalanı atıyordu,
+    // bu yüzden yalnızca ilk hane doluyordu. Şimdi birden fazla hane gelirse
+    // (autofill/yapıştırma) `i`'den başlayarak sıradaki kutulara dağıtılıyor.
+    if (digits.length > 1) {
+      const next = [...otp];
+      let idx = i;
+      for (const d of digits) {
+        if (idx > 5) break;
+        next[idx] = d;
+        idx++;
+      }
+      setOtp(next);
+      if (idx > 5) inputsRef.current[5]?.blur();
+      else inputsRef.current[idx]?.focus();
+      return;
+    }
     const next = [...otp];
-    next[i] = digit;
+    next[i] = digits;
     setOtp(next);
-    if (digit && i < 5) inputsRef.current[i + 1]?.focus();
+    if (digits && i < 5) inputsRef.current[i + 1]?.focus();
   };
 
   const handleOtpKey = (i: number, key: string) => {
@@ -153,10 +164,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-dark"
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
       <View
         className="flex-1 items-center justify-center px-6"
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
@@ -214,8 +222,22 @@ export default function LoginScreen() {
                     onChangeText={(v) => handleOtpChange(i, v)}
                     onKeyPress={(e) => handleOtpKey(i, e.nativeEvent.key)}
                     keyboardType="number-pad"
-                    maxLength={1}
-                    textContentType={i === 0 ? "oneTimeCode" : undefined}
+                    // P23-M8-d (T4): `maxLength={1}` her kutuyu tek haneye
+                    // KISITLIYORDU — iOS'un SMS önerisi kodun tamamını (6 hane)
+                    // odaklanılan kutuya tek seferde yazmaya çalışınca native
+                    // katman bunu 1 haneye kırpıyordu, JS'e hiç ulaşmıyordu
+                    // (bulgunun kök nedeni tam olarak buydu). Kutu zaten
+                    // controlled (`value={d}`) — her render'da tek haneye geri
+                    // dönüyor, bu yüzden 6'ya çıkarmak elle yazmayı bozmuyor,
+                    // yalnızca autofill'in tam kodu JS'e ulaştırmasına izin
+                    // veriyor (dağıtım `handleOtpChange`'de yapılıyor).
+                    maxLength={6}
+                    // Yalnızca ilk kutuda olması autofill şeridinin sadece o
+                    // kutu odaktayken görünmesine yol açıyordu; tüm kutularda
+                    // aynı content type autofill'in her zaman tetiklenmesini
+                    // sağlıyor.
+                    textContentType="oneTimeCode"
+                    autoComplete={Platform.OS === "android" ? "sms-otp" : undefined}
                     className="w-11 h-14 text-center rounded-lg border border-white/15 bg-white/5 text-hwhite text-xl"
                   />
                 ))}
@@ -249,6 +271,6 @@ export default function LoginScreen() {
           {error ? <Text className="text-hred text-xs mt-4 text-center">{error}</Text> : null}
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingScreen>
   );
 }

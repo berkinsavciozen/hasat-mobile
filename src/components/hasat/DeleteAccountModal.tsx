@@ -3,9 +3,10 @@
 // ile aynı onay metni + aynı RPC — yalnızca UI katmanı platforma özel
 // (CropRequestSheet ile aynı Modal deseni).
 import { useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { Modal, View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDeleteAccount } from "@/lib/hasat/account";
+import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 
 const CONFIRM_PHRASE = "HESABIMI SİL";
 
@@ -43,10 +44,11 @@ export function DeleteAccountModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <View className="flex-1 justify-end bg-black/50">
-        <View
-          className="rounded-t-2xl bg-dark px-5"
-          style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+      <KeyboardAvoidingScreen style={{ justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+        <ScrollView
+          className="max-h-[85%] rounded-t-2xl bg-dark"
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+          keyboardShouldPersistTaps="handled"
         >
           <View className="mb-3 flex-row items-center justify-between">
             <Text className="text-base font-medium text-hred">Hesabını Sil</Text>
@@ -95,8 +97,8 @@ export function DeleteAccountModal({
               <Text className="font-medium text-hwhite">Hesabımı Kalıcı Olarak Sil</Text>
             )}
           </Pressable>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingScreen>
     </Modal>
   );
 }

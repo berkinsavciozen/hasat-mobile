@@ -27,6 +27,7 @@ import { useKeepAwake } from "expo-keep-awake";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { useRecipeDetail, formatTimer } from "@/lib/hasat/recipes";
 import { useStepTimer, formatCountdown } from "@/lib/native/cookTimer";
+import { saveCookSession, clearCookSession } from "@/lib/native/cookSession";
 import {
   getNotificationPermission,
   requestNotificationPermission,
@@ -34,7 +35,11 @@ import {
 
 export default function CookModeScreen() {
   const insets = useSafeAreaInsets();
-  const { slug, own } = useLocalSearchParams<{ slug: string; own?: string }>();
+  const { slug, own, step: stepParam } = useLocalSearchParams<{
+    slug: string;
+    own?: string;
+    step?: string;
+  }>();
   const { data, isLoading } = useRecipeDetail(slug, { own: own === "1" });
 
   // Ekranı uyanık tutma — YALNIZCA bu ekran mount'tayken. `useKeepAwake`
@@ -50,10 +55,34 @@ export default function CookModeScreen() {
   const [index, setIndex] = useState(0);
   const [permissionAsk, setPermissionAsk] = useState(false);
   const permissionResolver = useRef<((granted: boolean) => void) | null>(null);
+  const initialStepAppliedRef = useRef(false);
 
   const steps = data?.steps ?? [];
   const recipe = data?.recipe;
   const step = steps[index];
+
+  // P23-M8-d (T4) — bulgu S33 adım 18: `?step=` parametresi tarif ekranındaki
+  // "Devam Et" banner'ından/CTA'sından geliyor (bkz. app/recipe/[slug].tsx),
+  // kaldığı adıma DOĞRUDAN atlamak için. Adımlar yüklenmeden index
+  // uygulanamaz, bu yüzden yalnızca steps hazır olduğunda ve yalnızca BİR KEZ
+  // (kullanıcı sonra elle "Önceki/Sonraki" ile gezinirse üzerine yazılmasın).
+  useEffect(() => {
+    if (initialStepAppliedRef.current || steps.length === 0) return;
+    initialStepAppliedRef.current = true;
+    const parsed = stepParam ? Number.parseInt(stepParam, 10) : NaN;
+    if (Number.isFinite(parsed)) {
+      setIndex(Math.min(Math.max(parsed, 0), steps.length - 1));
+    }
+  }, [steps.length, stepParam]);
+
+  // Konumu hatırla — timer kurulmasa bile (S33 adım 18: aktif bir timer
+  // olmadan da hangi adımda kalındığını bulmak zordu). "Bitir"e kadar
+  // silinmiyor (aşağıdaki Bitir handler'ına bkz.) — ✕ ile çıkışta korunuyor,
+  // "Devam Et" tam olarak bu senaryo için var.
+  useEffect(() => {
+    if (!recipe?.id || steps.length === 0) return;
+    void saveCookSession(recipe.id, index, steps.length);
+  }, [recipe?.id, index, steps.length]);
 
   /**
    * İzin akışı (görev metni madde 3 ile aynı ilke): çıplak sistem dialogu
@@ -263,7 +292,15 @@ export default function CookModeScreen() {
           <Text className="text-base font-medium text-hwhite">← Önceki</Text>
         </Pressable>
         <Pressable
-          onPress={() => (isLast ? router.back() : setIndex((i) => Math.min(steps.length - 1, i + 1)))}
+          onPress={() => {
+            if (isLast) {
+              // Tarif bitti — kaldığın-yerden-devam kaydı artık anlamsız.
+              if (recipe?.id) void clearCookSession(recipe.id);
+              router.back();
+            } else {
+              setIndex((i) => Math.min(steps.length - 1, i + 1));
+            }
+          }}
           className="flex-1 items-center rounded-2xl bg-saffron py-4"
         >
           <Text className="text-base font-medium text-hwhite">
