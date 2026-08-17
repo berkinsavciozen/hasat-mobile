@@ -159,6 +159,10 @@ export interface CreateOfferInput {
   delivery: string;
   deliveryDate: string;
   note: string | null;
+  /** Bu teklif bir tarif malzeme kartından ("Sipariş Ver") doğduysa o tarifin
+   * ID'si — `offers.source_recipe_id`'e yazılır, huni atfının (`v_kpi_recipe_funnel`)
+   * mobil kaynaklı kanıtı (P23-M8-c2/T3). */
+  sourceRecipeId?: string;
 }
 
 export interface CreatedOffer {
@@ -188,7 +192,7 @@ export function useCreateOffer() {
         p_delivery_date: input.deliveryDate,
         p_note: input.note ?? undefined,
         p_subscription_id: undefined,
-        p_source_recipe_id: undefined,
+        p_source_recipe_id: input.sourceRecipeId ?? undefined,
       });
       if (error) throw error;
       return data;

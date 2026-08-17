@@ -4,6 +4,11 @@
 // teklife cevap) burada YOK — mevcut plan kararı (Build/P23-Mobile.md →
 // "M8 sonrası"), "web'de devam et" yönlendirmesi kalıyor. Ödeme yok.
 //
+// P23-M8-c2 (T3) — bir teklife dokununca hiçbir şey olmuyordu: satır
+// (`OfferRow`) bir `Pressable` değil düz bir `View`'dı, hedef bir detay
+// ekranı da hiç yoktu (S33 adım 30). Kök neden ikisi birden — dokunma alanı
+// eksikti VE navigasyon hiç kurulmamıştı. Bkz. `app/offer/[id].tsx`.
+//
 // RLS: `offers`/`orders` SELECT politikaları zaten `buyer_id = auth.uid()`
 // ile taraf-bazlı — web'in kullandığı aynı politika, burada yeni bir
 // politika yazılmadı.
@@ -151,7 +156,10 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
   const needsWebAction = needsResponse || needsPayment;
 
   return (
-    <View className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+    <Pressable
+      onPress={() => router.push({ pathname: "/offer/[id]", params: { id: offer.id } })}
+      className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-4"
+    >
       <View className="flex-row items-start justify-between">
         <View className="flex-1 pr-2">
           <Text className="text-base font-medium text-hwhite">{offer.crop}</Text>
@@ -164,7 +172,10 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
       </View>
       {needsWebAction && (
         <Pressable
-          onPress={() => Linking.openURL(`${WEB_APP_URL}/buyer/negotiation/${offer.id}`)}
+          onPress={(e) => {
+            e.stopPropagation();
+            Linking.openURL(`${WEB_APP_URL}/buyer/negotiation/${offer.id}`);
+          }}
           className="mt-3 items-center rounded-lg border border-saffron py-2.5"
         >
           <Text className="text-xs font-medium text-saffron">
@@ -172,7 +183,7 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
           </Text>
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 
