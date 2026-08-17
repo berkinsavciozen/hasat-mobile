@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { RepresentativePhoto, RepresentativeBadge } from "@/components/hasat/RepresentativePhoto";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { formatIngredientName, formatQuantity, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
+import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import {
   useRecipeDetail,
   useRecipeAvailability,
@@ -62,6 +63,30 @@ export default function RecipeDetailScreen() {
   const matchedCrops = (data?.ingredients ?? []).filter((i) => i.crop).map((i) => i.crop as string);
   const { data: matchedListingIds } = useMatchedListingIds(matchedCrops);
 
+  // P23-M8-d (T4) — bulgu S33 adım 18: aktif bir pişirme oturumu varken bu
+  // tarife geri dönüldüğünde kaldığı adımı gösterip doğrudan oraya
+  // atlatıyoruz (banner aşağıda) — ekran her odaklandığında (cook mode'dan
+  // "← Tüm tarifler"/geri ile dönüş dahil) tazeleniyor, `useFocusEffect`
+  // sadece Query değil AsyncStorage bir kaynak okuduğu için TanStack Query
+  // yerine burada elle kullanıldı.
+  const [cookSession, setCookSession] = useState<CookSession | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const recipeId = recipe?.id;
+      if (!recipeId) {
+        setCookSession(null);
+        return;
+      }
+      let cancelled = false;
+      void getCookSession(recipeId).then((s) => {
+        if (!cancelled) setCookSession(s);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [recipe?.id]),
+  );
+
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-dark" style={{ paddingTop: insets.top }}>
@@ -93,6 +118,19 @@ export default function RecipeDetailScreen() {
   const { recipe: r, steps, ingredients, source } = data;
   const timeBreakdown = formatTimeBreakdown(r.prep_minutes, r.cook_minutes, r.rest_minutes);
 
+  // Adım listesi değişmiş olabilir (kullanıcı düzenledi) — kayıtlı adım
+  // artık aralık dışındaysa son adıma kilitleniyor, çökme yerine.
+  const resumeStepIndex =
+    cookSession && steps.length > 0
+      ? Math.min(Math.max(cookSession.stepIndex, 0), steps.length - 1)
+      : null;
+
+  const cookModeParams = (targetStep: number | null) => ({
+    slug: r.slug,
+    ...(isOwn ? { own: "1" } : {}),
+    ...(targetStep != null ? { step: String(targetStep) } : {}),
+  });
+
   return (
     <ScrollView className="flex-1 bg-dark" contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
       {isOffline && source === "cache" && <OfflineBanner />}
@@ -105,6 +143,25 @@ export default function RecipeDetailScreen() {
           style={{ width: "100%", height: 220 }}
         />
       </View>
+
+      {/* P23-M8-d (T4) — bulgu S33 adım 18, Berkin'in önerisi (a): aktif
+          pişirme adımına giden vurgulu bir alan, ekranın en üstünde. */}
+      {resumeStepIndex != null && (
+        <Pressable
+          onPress={() =>
+            router.push({ pathname: "/cook/[slug]", params: cookModeParams(resumeStepIndex) })
+          }
+          className="mx-5 mt-4 flex-row items-center justify-between rounded-2xl border border-saffron bg-saffron/15 px-4 py-3"
+        >
+          <View className="flex-1 pr-2">
+            <Text className="text-sm font-medium text-hwhite">👨‍🍳 Pişirmeye devam ediyorsun</Text>
+            <Text className="mt-0.5 text-xs text-hmuted">
+              Adım {resumeStepIndex + 1}/{steps.length}
+            </Text>
+          </View>
+          <Text className="text-sm font-medium text-saffron">Devam Et →</Text>
+        </Pressable>
+      )}
 
       <View className="px-5 py-4">
         <Pressable onPress={() => router.back()}>
@@ -185,18 +242,20 @@ export default function RecipeDetailScreen() {
         {/* P23-M6 — Pişirme moduna giriş. Şartname (Visual-Spec → "1. Pişirme
             Modu" → "Adım listesi (giriş noktası)"): adımların özeti burada,
             en altta değil en üstte bir CTA — kullanıcı adımları okumadan da
-            başlayabilmeli. Adım yoksa buton hiç render edilmiyor. */}
+            başlayabilmeli. Adım yoksa buton hiç render edilmiyor.
+            P23-M8-d (T4), Berkin'in önerisi (b): aktif pişirme oturumu varsa
+            buton metni "Pişirmeye Başla" yerine "Devam Et" olsun ve kaldığı
+            adıma götürsün — banner'la aynı hedef, iki ayrı giriş noktası. */}
         {steps.length > 0 && (
           <Pressable
             onPress={() =>
-              router.push({
-                pathname: "/cook/[slug]",
-                params: isOwn ? { slug: r.slug, own: "1" } : { slug: r.slug },
-              })
+              router.push({ pathname: "/cook/[slug]", params: cookModeParams(resumeStepIndex) })
             }
             className="mt-3 items-center rounded-2xl bg-saffron py-4"
           >
-            <Text className="text-base font-medium text-hwhite">👨‍🍳 Pişirmeye Başla</Text>
+            <Text className="text-base font-medium text-hwhite">
+              {resumeStepIndex != null ? "▶ Devam Et" : "👨‍🍳 Pişirmeye Başla"}
+            </Text>
           </Pressable>
         )}
         {steps.some((s) => s.timer_seconds != null) && (

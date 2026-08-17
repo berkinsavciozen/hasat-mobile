@@ -25,11 +25,12 @@
 //   erişebileceği bir Supabase Edge Function değil (web app'in kendi sunucu
 //   çalışma zamanına bağlı) — mobilden çağrılamaz.
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase/client";
 import { useHasatMobileSession } from "@/lib/store/session";
+import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 
 const TYPES = [
   { id: "restoran", label: "Restoran" },
@@ -97,91 +98,101 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View className="flex-1 bg-dark px-6" style={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }}>
-      <Text className="font-serif text-2xl text-hwhite">Hoş geldin</Text>
-      <Text className="mt-1 text-sm text-hmuted">Üreticilerin seni tanıması için birkaç bilgi.</Text>
-
-      <View className="mt-6 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
-        {(["individual", "company"] as const).map((m) => {
-          const on = mode === m;
-          return (
-            <Pressable
-              key={m}
-              onPress={() => {
-                setMode(m);
-                if (m === "individual") setType("");
-              }}
-              className={`flex-1 items-center rounded-lg py-2.5 ${on ? "bg-gold" : ""}`}
-            >
-              <Text className={`text-sm font-medium ${on ? "text-dark" : "text-hwhite"}`}>
-                {m === "individual" ? "Bireysel" : "Şirket"}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <Text className="mb-1 mt-5 text-xs text-hmuted">
-        {mode === "individual" ? "Adınız Soyadınız" : "Şirket Adı"}
-      </Text>
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder={mode === "individual" ? "Örn. Ayşe Yılmaz" : "Örn. Mikla Restaurant"}
-        placeholderTextColor="rgba(253,250,245,0.3)"
-        className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-hwhite"
-      />
-
-      {mode === "company" && (
-        <>
-          <Text className="mb-2 mt-5 text-xs text-hmuted">İşletme Tipi</Text>
-          <View className="flex-row flex-wrap gap-2">
-            {TYPES.map((t) => {
-              const on = type === t.id;
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => setType(t.id)}
-                  className={`rounded-xl border px-3.5 py-2.5 ${
-                    on ? "border-gold bg-gold/20" : "border-white/10 bg-white/5"
-                  }`}
-                >
-                  <Text className="text-sm text-hwhite">{t.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </>
-      )}
-
-      <Text className="mb-2 mt-5 text-xs text-hmuted">Aylık Tahmini Hacim (opsiyonel)</Text>
-      <View className="flex-row flex-wrap gap-2">
-        {VOLUMES.map((v) => {
-          const on = volume === v;
-          return (
-            <Pressable
-              key={v}
-              onPress={() => setVolume(on ? "" : v)}
-              className={`rounded-xl border px-3.5 py-2.5 ${
-                on ? "border-gold bg-gold/20" : "border-white/10 bg-white/5"
-              }`}
-            >
-              <Text className="text-sm text-hwhite">{v}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
-
-      <Pressable
-        disabled={!canSubmit || saving}
-        onPress={finish}
-        className="mt-8 w-full items-center rounded-xl bg-gold py-3.5"
-        style={{ opacity: !canSubmit || saving ? 0.4 : 1 }}
+    <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingHorizontal: 24,
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 24,
+        }}
+        keyboardShouldPersistTaps="handled"
       >
-        {saving ? <ActivityIndicator color="#1A1A14" /> : <Text className="font-medium text-dark">Keşfetmeye Başla →</Text>}
-      </Pressable>
-    </View>
+        <Text className="font-serif text-2xl text-hwhite">Hoş geldin</Text>
+        <Text className="mt-1 text-sm text-hmuted">Üreticilerin seni tanıması için birkaç bilgi.</Text>
+
+        <View className="mt-6 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
+          {(["individual", "company"] as const).map((m) => {
+            const on = mode === m;
+            return (
+              <Pressable
+                key={m}
+                onPress={() => {
+                  setMode(m);
+                  if (m === "individual") setType("");
+                }}
+                className={`flex-1 items-center rounded-lg py-2.5 ${on ? "bg-gold" : ""}`}
+              >
+                <Text className={`text-sm font-medium ${on ? "text-dark" : "text-hwhite"}`}>
+                  {m === "individual" ? "Bireysel" : "Şirket"}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text className="mb-1 mt-5 text-xs text-hmuted">
+          {mode === "individual" ? "Adınız Soyadınız" : "Şirket Adı"}
+        </Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder={mode === "individual" ? "Örn. Ayşe Yılmaz" : "Örn. Mikla Restaurant"}
+          placeholderTextColor="rgba(253,250,245,0.3)"
+          className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-hwhite"
+        />
+
+        {mode === "company" && (
+          <>
+            <Text className="mb-2 mt-5 text-xs text-hmuted">İşletme Tipi</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {TYPES.map((t) => {
+                const on = type === t.id;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setType(t.id)}
+                    className={`rounded-xl border px-3.5 py-2.5 ${
+                      on ? "border-gold bg-gold/20" : "border-white/10 bg-white/5"
+                    }`}
+                  >
+                    <Text className="text-sm text-hwhite">{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        <Text className="mb-2 mt-5 text-xs text-hmuted">Aylık Tahmini Hacim (opsiyonel)</Text>
+        <View className="flex-row flex-wrap gap-2">
+          {VOLUMES.map((v) => {
+            const on = volume === v;
+            return (
+              <Pressable
+                key={v}
+                onPress={() => setVolume(on ? "" : v)}
+                className={`rounded-xl border px-3.5 py-2.5 ${
+                  on ? "border-gold bg-gold/20" : "border-white/10 bg-white/5"
+                }`}
+              >
+                <Text className="text-sm text-hwhite">{v}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
+
+        <Pressable
+          disabled={!canSubmit || saving}
+          onPress={finish}
+          className="mt-8 w-full items-center rounded-xl bg-gold py-3.5"
+          style={{ opacity: !canSubmit || saving ? 0.4 : 1 }}
+        >
+          {saving ? <ActivityIndicator color="#1A1A14" /> : <Text className="font-medium text-dark">Keşfetmeye Başla →</Text>}
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingScreen>
   );
 }

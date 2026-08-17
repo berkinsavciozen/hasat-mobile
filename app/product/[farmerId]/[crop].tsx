@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { formatTRY, formatCropIngredient, formatQuantity } from "@/lib/hasat/format";
 import { convertQuantity } from "@/lib/core";
+import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 import {
   useFarmerCropListings,
   useListingStock,
@@ -147,8 +148,11 @@ export default function ProductScreen() {
   };
 
   return (
-    <View className="flex-1 bg-dark">
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 200 }}>
+    <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 200 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View className="px-5">
           <Pressable onPress={() => router.back()}>
             <Text className="text-xs text-hmuted">← Geri</Text>
@@ -279,7 +283,7 @@ export default function ProductScreen() {
           </Pressable>
         </View>
       </View>
-    </View>
+    </KeyboardAvoidingScreen>
   );
 }
 
