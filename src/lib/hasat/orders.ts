@@ -25,6 +25,10 @@ export interface BuyerOfferRow {
   paymentStatus: PaymentStatus;
   createdAt: string;
   farmerName: string | null;
+  farmerCity: string | null;
+  delivery: string | null;
+  deliveryDate: string | null;
+  note: string | null;
 }
 
 export interface BuyerOrderRow {
@@ -50,7 +54,7 @@ export function useBuyerOffers() {
       const { data, error } = await supabase
         .from("offers")
         .select(
-          "id, status, ball_side, payment_status, current_quantity, quantity, current_price, price_per_unit, created_at, farmer:profiles!offers_farmer_id_fkey(name), listing:listings(crop,unit)",
+          "id, status, ball_side, payment_status, current_quantity, quantity, current_price, price_per_unit, delivery, delivery_date, note, created_at, farmer:profiles!offers_farmer_id_fkey(name,city), listing:listings(crop,unit)",
         )
         .eq("buyer_id", uid)
         .order("created_at", { ascending: false });
@@ -66,6 +70,10 @@ export function useBuyerOffers() {
         paymentStatus: (r.payment_status ?? "unpaid") as PaymentStatus,
         createdAt: r.created_at,
         farmerName: r.farmer?.name ?? null,
+        farmerCity: r.farmer?.city ?? null,
+        delivery: r.delivery ?? null,
+        deliveryDate: r.delivery_date ?? null,
+        note: r.note ?? null,
       }));
     },
   });

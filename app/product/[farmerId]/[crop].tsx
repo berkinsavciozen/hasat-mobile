@@ -28,17 +28,23 @@ import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
+import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 
 export default function ProductScreen() {
   const insets = useSafeAreaInsets();
   const role = useHasatMobileSession((s) => s.role);
-  const { farmerId, crop } = useLocalSearchParams<{ farmerId: string; crop: string }>();
+  const { farmerId, crop, recipeId } = useLocalSearchParams<{
+    farmerId: string;
+    crop: string;
+    recipeId?: string;
+  }>();
   const { data: listings = [], isLoading } = useFarmerCropListings(farmerId, crop);
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [delivery, setDelivery] = useState<string>(DELIVERY_OPTIONS[0].id);
   const [deliveryDays, setDeliveryDays] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [requestOpen, setRequestOpen] = useState(false);
   const createOffer = useCreateOffer();
 
   // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
@@ -81,6 +87,10 @@ export default function ProductScreen() {
   }
 
   if (listings.length === 0) {
+    // P23-M8-c2 (T3) — önceden yalnızca "← Geri" vardı, "Talep Et" CTA'sı
+    // yoktu (web'deki aynı sınıf düzeltme: `buyer.product.$farmerId.$crop.tsx`).
+    // Crop URL'den zaten biliniyor (bir malzeme kartından eşleşerek buraya
+    // gelindi), bu yüzden `lockCropName` — huni atfı bozulmasın.
     return (
       <View
         className="flex-1 items-center justify-center bg-dark px-8"
@@ -89,9 +99,26 @@ export default function ProductScreen() {
         <Text className="text-center text-sm text-hmuted">
           Bu üreticinin bu üründe aktif partisi yok.
         </Text>
+        <Pressable
+          onPress={() => setRequestOpen(true)}
+          className="mt-4 rounded-full px-4 py-2.5"
+          style={{ backgroundColor: "#C8833B" }}
+        >
+          <Text className="text-xs font-semibold text-hwhite">Bu ürünü talep et</Text>
+        </Pressable>
         <Pressable onPress={() => router.back()} className="mt-4">
           <Text className="text-xs text-saffron underline">← Geri</Text>
         </Pressable>
+        {!!crop && (
+          <CropRequestSheet
+            visible={requestOpen}
+            onClose={() => setRequestOpen(false)}
+            lockCropName
+            initialCropName={crop}
+            ingredientClass="tarimsal"
+            recipeId={recipeId}
+          />
+        )}
       </View>
     );
   }
@@ -111,6 +138,7 @@ export default function ProductScreen() {
         delivery,
         deliveryDate: offsetToIsoDate(deliveryDays),
         note: note.trim() || null,
+        sourceRecipeId: recipeId || undefined,
       });
       router.replace({ pathname: "/offer/confirm", params: { crop: first.crop } });
     } catch (e: any) {

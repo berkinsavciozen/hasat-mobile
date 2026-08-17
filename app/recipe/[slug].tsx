@@ -337,7 +337,9 @@ function IngredientCard({
                 onPress={() =>
                   router.push({
                     pathname: "/product/[farmerId]/[crop]",
-                    params: { farmerId: matchedListing.farmerId, crop: ingredient.crop! },
+                    params: recipeId
+                      ? { farmerId: matchedListing.farmerId, crop: ingredient.crop!, recipeId }
+                      : { farmerId: matchedListing.farmerId, crop: ingredient.crop! },
                   })
                 }
                 hitSlop={8}
