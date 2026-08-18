@@ -8,7 +8,9 @@ import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { PushPermissionCard } from "@/components/hasat/PushPermissionCard";
 import {
   useRecipeList,
+  useRecipeCoverage,
   totalRecipeMinutes,
+  activeRecipeMinutes,
   formatTotalMinutes,
   needsAdvanceStart,
   DIFFICULTY_LABELS,
@@ -18,6 +20,13 @@ import { useMyRecipes, SOURCE_TYPE_LABELS, type MyRecipeItem } from "@/lib/hasat
 import { LOW_CONFIDENCE_THRESHOLD } from "@/lib/hasat/import";
 import { getNotificationPermission } from "@/lib/native/notifications";
 import { registerPushTokenIfPermitted, requestPushPermissionWithContext } from "@/lib/native/push";
+import {
+  RecipeFilterSheet,
+  EMPTY_RECIPE_FILTERS,
+  activeFilterCount,
+  type RecipeFilters,
+} from "@/components/hasat/RecipeFilterSheet";
+import { useUnreadCount } from "@/lib/hasat/notifications";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -46,6 +55,14 @@ export default function RecipeListScreen() {
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
   const mine = useMyRecipes();
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── F13-dar: süre/malzeme/diyet filtresi ──────────────────────────────────
+  const coverage = useRecipeCoverage();
+  const [filters, setFilters] = useState<RecipeFilters>(EMPTY_RECIPE_FILTERS);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  // ── F10-lite: bell ─────────────────────────────────────────────────────────
+  const { data: unreadCount = 0 } = useUnreadCount();
 
   // ── Push izni: bağlam kartı ────────────────────────────────────────────────
   const [showPushCard, setShowPushCard] = useState(false);
@@ -84,6 +101,23 @@ export default function RecipeListScreen() {
   const showEmptyOfflineState = isOffline && !isLoading && items.length === 0;
   const myItems = mine.data ?? [];
 
+  const dietTags = Array.from(new Set(items.flatMap((r) => r.diet_tags))).sort();
+  const filterCount = activeFilterCount(filters);
+  const filteredItems = items.filter((r) => {
+    if (filters.diet && !r.diet_tags.includes(filters.diet)) return false;
+    if (filters.duration) {
+      const mins = activeRecipeMinutes(r);
+      const max = filters.duration === "30" ? 30 : 60;
+      const prevMax = filters.duration === "30" ? 0 : 30;
+      if (!(mins > prevMax && mins <= max)) return false;
+    }
+    if (filters.onlyAvailable && !isOffline) {
+      const available = coverage.data?.get(r.id)?.available_count ?? 0;
+      if (available < 1) return false;
+    }
+    return true;
+  });
+
   return (
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
@@ -98,6 +132,21 @@ export default function RecipeListScreen() {
             eklemek `react-native-svg` native bağımlılığı getirir, EAS build
             kotası kısıtlıyken (bkz. M5-a-ek-2) gereksiz bir risk. */}
         <View className="flex-row items-center gap-1">
+          <Pressable onPress={() => router.push("/notifications")} hitSlop={12} className="p-2">
+            <View>
+              <Text className="text-xs text-hmuted">🔔</Text>
+              {unreadCount > 0 && (
+                <View
+                  className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
+                  style={{ backgroundColor: "#C8833B" }}
+                >
+                  <Text className="text-[9px] font-bold text-hwhite">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
           <Pressable onPress={() => router.push("/orders")} hitSlop={12} className="p-2">
             <Text className="text-xs text-hmuted">📦</Text>
           </Pressable>
@@ -119,6 +168,22 @@ export default function RecipeListScreen() {
           onPress={() => setTab("mine")}
         />
       </View>
+
+      {tab === "public" && (
+        <View className="mx-4 mb-3 flex-row">
+          <Pressable
+            onPress={() => setFilterSheetOpen(true)}
+            className="flex-row items-center gap-1.5 self-start rounded-full border border-white/15 bg-white/5 px-3 py-1.5"
+          >
+            <Text className="text-xs text-hwhite">🔍 Filtrele</Text>
+            {filterCount > 0 && (
+              <View className="rounded-full bg-saffron px-1.5">
+                <Text className="text-[10px] font-bold text-hwhite">{filterCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {isOffline && (tab === "mine" || items.length > 0) && <OfflineBanner />}
 
@@ -161,9 +226,19 @@ export default function RecipeListScreen() {
             <Text className="font-medium text-hwhite">Yeniden Dene</Text>
           </Pressable>
         </View>
+      ) : filterCount > 0 && filteredItems.length === 0 ? (
+        <View className="flex-1 items-center justify-center px-8">
+          <Text className="text-center text-sm text-hmuted">Bu filtrelerle eşleşen tarif yok.</Text>
+          <Pressable
+            onPress={() => setFilters(EMPTY_RECIPE_FILTERS)}
+            className="mt-4 rounded-xl bg-saffron px-6 py-3"
+          >
+            <Text className="font-medium text-hwhite">Filtreleri Temizle</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
-          data={items}
+          data={filteredItems}
           keyExtractor={(r) => r.id}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 96 }}
           refreshing={refreshing}
@@ -187,6 +262,15 @@ export default function RecipeListScreen() {
       >
         <Text className="font-medium text-hwhite">+ Tarif Ekle</Text>
       </Pressable>
+
+      <RecipeFilterSheet
+        visible={filterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        filters={filters}
+        onChange={setFilters}
+        dietTags={dietTags}
+        coverageAvailable={!isOffline}
+      />
     </View>
   );
 }

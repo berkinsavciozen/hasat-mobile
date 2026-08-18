@@ -109,6 +109,14 @@ export default function ProfileScreen() {
         </Pressable>
 
         <Pressable
+          onPress={() => router.push("/notif-prefs")}
+          className="mt-3 flex-row items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4"
+        >
+          <Text className="text-sm font-medium text-hwhite">🔔 Bildirim Tercihleri</Text>
+          <Text className="text-hmuted">›</Text>
+        </Pressable>
+
+        <Pressable
           onPress={signOut}
           className="mt-8 w-full items-center rounded-xl bg-hred py-3.5"
         >
