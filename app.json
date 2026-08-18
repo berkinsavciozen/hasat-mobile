@@ -33,6 +33,12 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1A1A14"
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {

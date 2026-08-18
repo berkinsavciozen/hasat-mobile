@@ -6,6 +6,8 @@ import { useIsOffline } from "@/lib/net/useIsOffline";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
 import { PushPermissionCard } from "@/components/hasat/PushPermissionCard";
+import { IntroTourModal } from "@/components/hasat/IntroTourModal";
+import { hasSeenIntroTour, markIntroTourSeen } from "@/lib/hasat/introTour";
 import {
   useRecipeList,
   useRecipeCoverage,
@@ -67,6 +69,24 @@ export default function RecipeListScreen() {
   // ── Push izni: bağlam kartı ────────────────────────────────────────────────
   const [showPushCard, setShowPushCard] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+
+  // ── İlk-kullanım tanıtım turu ────────────────────────────────────────────
+  // `/home`'un ilk mount'una bağlandı (yalnızca `onboarding.tsx`'in
+  // `finish()`'ine değil): yeni kayıtları da, tur eklenmeden önce zaten
+  // profili olan mevcut kullanıcıları da tek bir yerden kapsar. Bayrak
+  // cihaz-genel (AsyncStorage) — `push.ts`'teki `LAST_TOKEN_KEY` deseniyle
+  // aynı basit mekanizma (kural #106: yeni bir kalıcılık yolu icat etme).
+  const [introVisible, setIntroVisible] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const seen = await hasSeenIntroTour();
+      if (!cancelled && !seen) setIntroVisible(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -270,6 +290,14 @@ export default function RecipeListScreen() {
         onChange={setFilters}
         dietTags={dietTags}
         coverageAvailable={!isOffline}
+      />
+
+      <IntroTourModal
+        visible={introVisible}
+        onFinish={() => {
+          setIntroVisible(false);
+          void markIntroTourSeen();
+        }}
       />
     </View>
   );
