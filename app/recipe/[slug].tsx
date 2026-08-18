@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Image, Share } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import { RepresentativePhoto, RepresentativeBadge } from "@/components/hasat/RepresentativePhoto";
@@ -9,6 +9,7 @@ import { useIsOffline } from "@/lib/net/useIsOffline";
 import { formatIngredientName, formatQuantity, formatTRY } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
+import { WEB_APP_URL } from "@/lib/hasat/webLinks";
 import {
   useRecipeDetail,
   useRecipeAvailability,
@@ -118,6 +119,18 @@ export default function RecipeDetailScreen() {
   const { recipe: r, steps, ingredients, source } = data;
   const timeBreakdown = formatTimeBreakdown(r.prep_minutes, r.cook_minutes, r.rest_minutes);
 
+  // Yalnızca public (Hasat) tarifler paylaşılabilir — Defterim'deki kişisel
+  // taslaklar (own=1) henüz paylaşılabilir değil (share_token modeli v1.1,
+  // Launch-Scope-Plan.md → F8). Yanlışlıkla private bir link paylaşılmasın.
+  const shareUrl = `${WEB_APP_URL}/tarifler/${r.slug}`;
+  const handleShare = () => {
+    void Share.share({
+      message: `${r.title} — Hasat'ta bu tarife göz at: ${shareUrl}`,
+      url: shareUrl,
+      title: r.title,
+    });
+  };
+
   // Adım listesi değişmiş olabilir (kullanıcı düzenledi) — kayıtlı adım
   // artık aralık dışındaysa son adıma kilitleniyor, çökme yerine.
   const resumeStepIndex =
@@ -164,9 +177,20 @@ export default function RecipeDetailScreen() {
       )}
 
       <View className="px-5 py-4">
-        <Pressable onPress={() => router.back()}>
-          <Text className="text-xs text-hmuted">← Tüm tarifler</Text>
-        </Pressable>
+        <View className="flex-row items-center justify-between">
+          <Pressable onPress={() => router.back()}>
+            <Text className="text-xs text-hmuted">← Tüm tarifler</Text>
+          </Pressable>
+          {!isOwn && (
+            <Pressable
+              onPress={handleShare}
+              hitSlop={8}
+              className="rounded-full border border-white/15 px-3 py-1"
+            >
+              <Text className="text-xs text-hmuted">🔗 Paylaş</Text>
+            </Pressable>
+          )}
+        </View>
         <Text className="mt-2 font-serif text-2xl font-bold text-hwhite">{r.title}</Text>
         {r.description && <Text className="mt-2 text-sm text-hmuted">{r.description}</Text>}
 
