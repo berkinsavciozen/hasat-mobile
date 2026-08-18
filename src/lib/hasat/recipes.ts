@@ -350,6 +350,40 @@ export function useRecipeDetail(slug: string | undefined, options?: { own?: bool
   });
 }
 
+/**
+ * F13 — "Hasat'ta satılan ürün içeren" filtresi. Web'in `v_recipe_coverage`
+ * kullanımının (fetchRecipeList) birebir mobil karşılığı: kural #106 gereği
+ * malzeme↔aktif-ilan eşleştirmesi burada client-side yeniden yazılmıyor, var
+ * olan view'a bir sorgu atılıyor. `rpc_recipe_availability` gibi canlı veri —
+ * asla önbelleklenmez (offline'da liste görünür ama bu filtre devre dışı
+ * kalır, bkz. RecipeFilterSheet).
+ */
+export interface RecipeCoverageRow {
+  recipe_id: string;
+  ingredient_count: number | null;
+  available_count: number | null;
+}
+
+export function useRecipeCoverage() {
+  const isOffline = useIsOffline();
+  return useQuery({
+    queryKey: ["recipeCoverage"],
+    enabled: !isOffline,
+    staleTime: 60 * 1000,
+    queryFn: async (): Promise<Map<string, RecipeCoverageRow>> => {
+      const { data, error } = await supabase
+        .from("v_recipe_coverage" as any)
+        .select("recipe_id, ingredient_count, available_count");
+      if (error) throw error;
+      const map = new Map<string, RecipeCoverageRow>();
+      for (const row of (data ?? []) as unknown as RecipeCoverageRow[]) {
+        map.set(row.recipe_id, row);
+      }
+      return map;
+    },
+  });
+}
+
 /** Canlı veri — bilinçli olarak asla önbelleklenmez, offline'da hiç çağrılmaz. */
 export function useRecipeAvailability(recipeId: string | undefined) {
   const isOffline = useIsOffline();
@@ -475,6 +509,20 @@ export function totalRecipeMinutes(r: {
   rest_minutes: number | null;
 }): number {
   return (r.prep_minutes ?? 0) + (r.cook_minutes ?? 0) + (r.rest_minutes ?? 0);
+}
+
+/**
+ * F13 süre filtresinin süzdüğü değer — web'deki `activeRecipeMinutes`'ın
+ * birebir aynısı (hazırlık + pişirme, dinlenme HARİÇ; bkz. web
+ * tarifler.index.tsx başlık yorumu: `rest_minutes` bir planlama kısıtı,
+ * mutfakta harcanan emek değil — toplam süreye göre filtrelemek 73 saatlik
+ * bir tarifi 65 dakikalık bir tarifle aynı bucket'a gömerdi).
+ */
+export function activeRecipeMinutes(r: {
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+}): number {
+  return (r.prep_minutes ?? 0) + (r.cook_minutes ?? 0);
 }
 
 /** Eşik 120 dk (2 saat) — bkz. web'deki `ADVANCE_START_THRESHOLD_MINUTES`
