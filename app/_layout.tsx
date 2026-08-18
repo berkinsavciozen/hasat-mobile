@@ -4,11 +4,21 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { View, ActivityIndicator, AppState } from "react-native";
+import { View, Text, ActivityIndicator, AppState } from "react-native";
+import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
 import { configureNotifications, attachNotificationTapRouting } from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
+
+// Final logo/app icon henüz yok (Berkin'in ayrı bir işi) — native splash
+// (app.json → "expo-splash-screen" plugin config'i) bu yüzden salt
+// `dark` arka plan rengi taşıyor, hiçbir görsele bağımlı değil. Marka
+// kimliği (🌸 + "Hasat") JS katmanında bu ekranla veriliyor — login.tsx'in
+// kendi ekranındaki aynı desen. Final logo geldiğinde güncellenecek İKİ yer:
+// (1) app.json'daki plugin config'ine `image` eklemek, (2) aşağıdaki
+// emoji/metni bir <Image> ile değiştirmek — ikisi de tek satırlık değişiklik.
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -63,9 +73,18 @@ export default function RootLayout() {
     supabase.auth.getSession().finally(() => setBootstrapped(true));
   }, []);
 
+  // İlk JS frame'i (aşağıdaki marka ekranı) commit olduktan hemen sonra
+  // native splash'ı kapat — kullanıcı native (salt renk) splash'tan JS'in
+  // marka ekranına akışı boş/beyaz bir kare görmeden geçer.
+  useEffect(() => {
+    void SplashScreen.hideAsync();
+  }, []);
+
   if (!bootstrapped) {
     return (
       <View className="flex-1 items-center justify-center bg-dark">
+        <Text className="mb-2 text-5xl">🌸</Text>
+        <Text className="mb-6 text-4xl font-bold text-saffron">Hasat</Text>
         <ActivityIndicator color="#C8833B" />
       </View>
     );
