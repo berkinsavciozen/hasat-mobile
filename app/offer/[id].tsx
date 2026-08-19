@@ -10,13 +10,13 @@
 // ekranında `["buyerOffersReadonly"]` anahtarıyla önbelleğe alınmış
 // durumda; bu ekran aynı hook'u çağırıp listeden `id`'yi buluyor (TanStack
 // Query cache-first, ekstra bir ağ isteği yalnızca önbellek yoksa/bayatsa).
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Linking } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { formatTRY, formatQuantity, formatCropIngredient } from "@/lib/hasat/format";
 import { useBuyerOffers, offerStatusLabel } from "@/lib/hasat/orders";
 import { DELIVERY_OPTIONS } from "@/lib/hasat/offers";
-import { WEB_APP_URL } from "@/lib/hasat/webLinks";
+import { openWebWithSession } from "@/lib/hasat/webLinks";
 
 function deliveryLabel(delivery: string | null): string {
   return DELIVERY_OPTIONS.find((d) => d.id === delivery)?.label ?? "—";
@@ -107,7 +107,7 @@ export default function OfferDetailScreen() {
 
         {needsWebAction && (
           <Pressable
-            onPress={() => Linking.openURL(`${WEB_APP_URL}/buyer/negotiation/${offer.id}`)}
+            onPress={() => openWebWithSession(`/buyer/negotiation/${offer.id}`)}
             className="mt-4 items-center rounded-lg border border-saffron py-3"
           >
             <Text className="text-sm font-medium text-saffron">

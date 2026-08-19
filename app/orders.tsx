@@ -13,7 +13,7 @@
 // ile taraf-bazlı — web'in kullandığı aynı politika, burada yeni bir
 // politika yazılmadı.
 import { useCallback, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator, Linking } from "react-native";
+import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +26,7 @@ import {
   type BuyerOfferRow,
   type BuyerOrderRow,
 } from "@/lib/hasat/orders";
-import { WEB_APP_URL } from "@/lib/hasat/webLinks";
+import { openWebWithSession } from "@/lib/hasat/webLinks";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 
@@ -174,7 +174,7 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            Linking.openURL(`${WEB_APP_URL}/buyer/negotiation/${offer.id}`);
+            openWebWithSession(`/buyer/negotiation/${offer.id}`);
           }}
           className="mt-3 items-center rounded-lg border border-saffron py-2.5"
         >

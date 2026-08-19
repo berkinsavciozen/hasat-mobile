@@ -10,6 +10,7 @@ import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
 import { configureNotifications, attachNotificationTapRouting } from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
+import { useHasatMobileSession } from "@/lib/store/session";
 
 // Final logo/app icon henüz yok (Berkin'in ayrı bir işi) — native splash
 // (app.json → "expo-splash-screen" plugin config'i) bu yüzden salt
@@ -70,7 +71,33 @@ export default function RootLayout() {
     // Supabase, storage adaptöründen (LargeSecureStore) oturumu okuyup
     // hydrate ediyor mu diye ilk kontrol — uygulama kapatılıp açıldığında
     // oturumun cihazda kalıcı olduğunu doğrulayan adım budur (bkz. M5-a "E").
-    supabase.auth.getSession().finally(() => setBootstrapped(true));
+    //
+    // 11. tur kök neden düzeltmesi: `role`, zustand+SecureStore'da kalıcı
+    // (bkz. session.ts) ama yalnızca login.tsx'in `verify()` adımında (tam
+    // OTP girişi) DB'den yazılıyordu. Soğuk açılışta mevcut bir oturum
+    // bulunduğunda rol hiç yeniden sorgulanmıyordu — cihazda daha önce
+    // herhangi bir noktada kalmış (muhtemelen eski/yanlış) bir `role`
+    // değeri, kullanıcı tekrar `/login`'den geçmediği sürece sessizce
+    // kullanılmaya devam ediyordu (FarmerRedirectNotice'ın yanlışlıkla
+    // devreye girip alıcı akışlarını ezmesinin en olası açıklaması buydu).
+    // Düzeltme: session varsa `profiles.role`'ü tazece çek — login.tsx'in
+    // `verify()`'indeki aynı sorgu deseni (kural #106, yeni bir sorgu icat
+    // edilmedi) — ve store'a yaz. Session yoksa (misafir/çıkış yapılmış)
+    // dokunma, store'un kendi "buyer" varsayılanı kalır.
+    supabase.auth
+      .getSession()
+      .then(async ({ data: { session } }) => {
+        if (!session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", session.user.id)
+          .single();
+        if (profile) {
+          useHasatMobileSession.getState().setRole(profile.role === "buyer" ? "buyer" : "farmer");
+        }
+      })
+      .finally(() => setBootstrapped(true));
   }, []);
 
   // İlk JS frame'i (aşağıdaki marka ekranı) commit olduktan hemen sonra
