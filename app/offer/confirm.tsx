@@ -27,10 +27,10 @@ export default function OfferConfirmScreen() {
         Üretici teklifinizi inceleyecek — çiftçi yanıtladığında bildirim alacaksın.
       </Text>
       <Pressable
-        onPress={() => router.replace("/home")}
+        onPress={() => router.replace("/orders")}
         className="mt-8 w-full items-center rounded-xl bg-white py-3.5"
       >
-        <Text className="text-sm font-medium text-dark">Tariflere Dön</Text>
+        <Text className="text-sm font-medium text-dark">Siparişlerim</Text>
       </Pressable>
     </View>
   );

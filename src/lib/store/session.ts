@@ -39,7 +39,7 @@ export const useHasatMobileSession = create<SessionState>()(
       setRole: (role) => set({ role }),
       updateUser: (user) =>
         set((s) => ({ user: { ...s.user, ...user, id: user.id } })),
-      clear: () => set({ user: null }),
+      clear: () => set({ user: null, role: "buyer" }),
     }),
     {
       name: "hasat-mobile-session",

@@ -8,7 +8,7 @@
 // Ver), src/components/hasat/CropRequestSheet.tsx (Talep Et). Tarif
 // okuma/kaydetme çiftçiye KAPANMADI — bu bileşen o akışlarda kullanılmıyor.
 import { View, Text, Pressable, Linking } from "react-native";
-import { WEB_APP_URL } from "@/lib/hasat/webLinks";
+import { openWebWithSession } from "@/lib/hasat/webLinks";
 
 // Web'deki `HASAT_WHATSAPP_NUMBER` (hasat-d2c-marketplace/src/lib/hasat/
 // constants.ts) ile aynı değer — iki repo arasında paylaşılan bir kod yolu
@@ -29,7 +29,7 @@ export function FarmerRedirectNotice() {
       </Text>
       <View className="mt-6 w-full gap-2">
         <Pressable
-          onPress={() => Linking.openURL(WEB_APP_URL)}
+          onPress={() => openWebWithSession("/")}
           className="items-center rounded-xl bg-saffron py-3"
         >
           <Text className="text-sm font-medium text-hwhite">Web'de Aç →</Text>
