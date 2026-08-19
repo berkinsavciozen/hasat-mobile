@@ -10,6 +10,7 @@ import { formatIngredientName, formatQuantity, formatTRY } from "@/lib/hasat/for
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
+import { useIsRecipeSaved, useToggleRecipeSave } from "@/lib/hasat/favorites";
 import {
   useRecipeDetail,
   useRecipeAvailability,
@@ -181,14 +182,29 @@ export default function RecipeDetailScreen() {
           <Pressable onPress={() => router.back()}>
             <Text className="text-xs text-hmuted">← Tüm tarifler</Text>
           </Pressable>
-          {!isOwn && (
+          {isOwn ? (
+            // F7 — Defterim'deki kendi tarifimi düzenleme girişi. Aynı ekranı
+            // (app/import.tsx'in "review" aşaması) düzenleme modunda açıyor —
+            // `recipeId` route param'ı ile (kural #106: yeni ekran yok).
             <Pressable
-              onPress={handleShare}
+              onPress={() => router.push({ pathname: "/import", params: { recipeId: r.id } })}
               hitSlop={8}
               className="rounded-full border border-white/15 px-3 py-1"
             >
-              <Text className="text-xs text-hmuted">🔗 Paylaş</Text>
+              <Text className="text-xs text-hmuted">✏️ Düzenle</Text>
             </Pressable>
+          ) : (
+            <View className="flex-row items-center gap-2">
+              {/* F5 — yalnızca kişisel yer imi, herkese açık sayaç yok. */}
+              <FavoriteButton recipeId={r.id} />
+              <Pressable
+                onPress={handleShare}
+                hitSlop={8}
+                className="rounded-full border border-white/15 px-3 py-1"
+              >
+                <Text className="text-xs text-hmuted">🔗 Paylaş</Text>
+              </Pressable>
+            </View>
           )}
         </View>
         <Text className="mt-2 font-serif text-2xl font-bold text-hwhite">{r.title}</Text>
@@ -319,6 +335,24 @@ export default function RecipeDetailScreen() {
         </Text>
       </View>
     </ScrollView>
+  );
+}
+
+/** F5 — optimistic UI: dokununca kalp hemen dolar/boşalır, `recipe_saves`
+ * isteği arkada gider; başarısız olursa `useToggleRecipeSave`'in
+ * `onError`'ı önceki duruma geri alır (bkz. lib/hasat/favorites.ts). */
+function FavoriteButton({ recipeId }: { recipeId: string }) {
+  const { data: isSaved = false } = useIsRecipeSaved(recipeId);
+  const toggle = useToggleRecipeSave(recipeId);
+  return (
+    <Pressable
+      onPress={() => toggle.mutate(!isSaved)}
+      hitSlop={8}
+      accessibilityLabel={isSaved ? "Favorilerden çıkar" : "Favorilere ekle"}
+      className="h-7 w-7 items-center justify-center rounded-full border border-white/15"
+    >
+      <Text style={{ fontSize: 13 }}>{isSaved ? "❤️" : "🤍"}</Text>
+    </Pressable>
   );
 }
 

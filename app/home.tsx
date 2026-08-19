@@ -19,6 +19,7 @@ import {
   type RecipeListItem,
 } from "@/lib/hasat/recipes";
 import { useMyRecipes, SOURCE_TYPE_LABELS, type MyRecipeItem } from "@/lib/hasat/myRecipes";
+import { useFavoriteRecipes, type FavoriteRecipeItem } from "@/lib/hasat/favorites";
 import { LOW_CONFIDENCE_THRESHOLD } from "@/lib/hasat/import";
 import { getNotificationPermission } from "@/lib/native/notifications";
 import { registerPushTokenIfPermitted, requestPushPermissionWithContext } from "@/lib/native/push";
@@ -56,6 +57,10 @@ export default function RecipeListScreen() {
   const [tab, setTab] = useState<Tab>("public");
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
   const mine = useMyRecipes();
+  // F5 — "Favorilerim", "Tariflerim"den (kendi importlarım) AYRI bir alt
+  // sekme: ikisi hiçbir zaman aynı listede karışmıyor.
+  const [mineSubTab, setMineSubTab] = useState<"own" | "favorites">("own");
+  const favorites = useFavoriteRecipes(tab === "mine");
   const [refreshing, setRefreshing] = useState(false);
 
   // ── F13-dar: süre/malzeme/diyet filtresi ──────────────────────────────────
@@ -120,6 +125,7 @@ export default function RecipeListScreen() {
   const items = data?.items ?? [];
   const showEmptyOfflineState = isOffline && !isLoading && items.length === 0;
   const myItems = mine.data ?? [];
+  const favoriteItems = favorites.data ?? [];
 
   const dietTags = Array.from(new Set(items.flatMap((r) => r.diet_tags))).sort();
   const filterCount = activeFilterCount(filters);
@@ -216,12 +222,35 @@ export default function RecipeListScreen() {
       )}
 
       {tab === "mine" ? (
-        <MyRecipesTab
-          isOffline={isOffline}
-          isLoading={mine.isLoading}
-          items={myItems}
-          bottomInset={insets.bottom}
-        />
+        <>
+          <View className="mx-4 mb-3 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
+            <TabButton
+              label={`Tariflerim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
+              active={mineSubTab === "own"}
+              onPress={() => setMineSubTab("own")}
+            />
+            <TabButton
+              label={`Favorilerim${favoriteItems.length > 0 ? ` (${favoriteItems.length})` : ""}`}
+              active={mineSubTab === "favorites"}
+              onPress={() => setMineSubTab("favorites")}
+            />
+          </View>
+          {mineSubTab === "own" ? (
+            <MyRecipesTab
+              isOffline={isOffline}
+              isLoading={mine.isLoading}
+              items={myItems}
+              bottomInset={insets.bottom}
+            />
+          ) : (
+            <FavoritesTab
+              isOffline={isOffline}
+              isLoading={favorites.isLoading}
+              items={favoriteItems}
+              bottomInset={insets.bottom}
+            />
+          )}
+        </>
       ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#C8833B" />
@@ -398,6 +427,82 @@ function MyRecipesTab({
                 ⚠️ Okurken emin olamadık — gözden geçirmek isteyebilirsin.
               </Text>
             )}
+          </Pressable>
+        );
+      }}
+    />
+  );
+}
+
+/** F5 — favorilediğim Hasat tarifleri. `MyRecipesTab`'ın kardeşi ama ayrı bir
+ * sorgu/liste: kendi importlarımla (Defterim → Tariflerim) hiçbir zaman
+ * birleşmiyor. Buradan public tarif detayına gidiyor (`own` param'ı YOK —
+ * bunlar Hasat'ın herkese açık tarifleri, kullanıcının kendi taslağı değil). */
+function FavoritesTab({
+  isOffline,
+  isLoading,
+  items,
+  bottomInset,
+}: {
+  isOffline: boolean;
+  isLoading: boolean;
+  items: FavoriteRecipeItem[];
+  bottomInset: number;
+}) {
+  if (isOffline) {
+    return (
+      <View className="flex-1 items-center justify-center px-8">
+        <Text className="text-center text-sm text-hmuted">
+          Favorilerin çevrimdışı görüntülenemiyor. Bağlanınca burada olacaklar.
+        </Text>
+      </View>
+    );
+  }
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator color="#C8833B" />
+      </View>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center px-8">
+        <Text style={{ fontSize: 36 }}>🤍</Text>
+        <Text className="mt-3 text-center text-base font-medium text-hwhite">
+          Henüz favorin yok
+        </Text>
+        <Text className="mt-1.5 text-center text-sm text-hmuted">
+          Hasat Tarifleri'nde beğendiğin bir tarifin kalp ikonuna dokun, buraya eklensin.
+        </Text>
+      </View>
+    );
+  }
+  return (
+    <FlatList
+      data={items}
+      keyExtractor={(r) => r.id}
+      contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 96 }}
+      renderItem={({ item }) => {
+        const minutes =
+          (item.prep_minutes ?? 0) + (item.cook_minutes ?? 0) + (item.rest_minutes ?? 0);
+        return (
+          <Pressable
+            onPress={() => router.push(`/recipe/${item.slug}`)}
+            className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+          >
+            <Text className="text-base font-medium text-hwhite">{item.title}</Text>
+            <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
+              {item.difficulty && (
+                <Text className="text-[11px] text-hmuted">
+                  {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
+                </Text>
+              )}
+              {item.cuisine && <Text className="text-[11px] text-hmuted">· {item.cuisine}</Text>}
+              {minutes > 0 && (
+                <Text className="text-[11px] text-hmuted">· 🕐 {formatTotalMinutes(minutes)}</Text>
+              )}
+            </View>
           </Pressable>
         );
       }}

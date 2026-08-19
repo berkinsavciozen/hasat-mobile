@@ -10,10 +10,10 @@
 // KAPSAM DIŞI (bilinçli, M9 — hukuki kontrol şartlı): YouTube/link importu ve
 // bitmiş yemek fotoğrafından tahmin. Bu ekranda böyle bir giriş YOK; edge
 // function da `mode` olarak yalnızca 'text'/'photo' kabul ediyor.
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -43,19 +43,49 @@ export default function ImportScreen() {
   const isOffline = useIsOffline();
   const queryClient = useQueryClient();
 
-  const [stage, setStage] = useState<Stage>("pick");
+  // F7 — Defterim'de kayıtlı bir tarifi düzenleme. `recipeId` route param'ı
+  // varsa bu ekran yeni bir AI import akışı değil, var olan bir `recipes`
+  // satırının düzenleyicisi olarak açılıyor: aynı "Kontrol Et" (review)
+  // formu yeniden kullanılıyor (kural #106 — yeni ekran yok), yalnızca giriş
+  // noktası ve çıkış davranışı farklılaşıyor. `loadDraft`/`saveDraft` zaten
+  // taslak durumuna bakmadan `recipeId` üzerinden çalışıyor (bkz.
+  // lib/hasat/import.ts) — bu yüzden ikisine de dokunulmadı.
+  const { recipeId: editRecipeId } = useLocalSearchParams<{ recipeId?: string }>();
+  const isEditMode = !!editRecipeId;
+
+  const [stage, setStage] = useState<Stage>(isEditMode ? "loading" : "pick");
   const [text, setText] = useState("");
   const [recipeName, setRecipeName] = useState("");
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [cropPickerForKey, setCropPickerForKey] = useState<string | null>(null);
   // P23-M8-d (T4) — adım fotoğrafı yüklenirken hangi adımın "yükleniyor"
   // durumunda olduğunu tutuyor (aynı anda yalnızca bir adım fotoğrafı
   // seçilebilir, ImagePicker zaten modal — çakışma riski yok).
   const [uploadingStepKey, setUploadingStepKey] = useState<string | null>(null);
   const userId = useHasatMobileSession((s) => s.user?.id);
+
+  useEffect(() => {
+    if (!isEditMode || !editRecipeId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const loaded = await loadDraft(editRecipeId);
+        if (cancelled) return;
+        setDraft(loaded);
+        setStage("review");
+      } catch (e) {
+        console.error("[import] düzenlenecek tarif yüklenemedi", e);
+        if (!cancelled) setLoadFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditMode, editRecipeId]);
 
   const run = useCallback(
     async (input: { mode: "text" | "photo"; text?: string; base64?: string; mime?: string }) => {
@@ -168,8 +198,10 @@ export default function ImportScreen() {
 
   const close = useCallback(async () => {
     // Taslak kaydedilmeden çıkılıyorsa silinir — yarım/bozuk bir kayıt
-    // defterde birikmemeli.
-    if (stage === "review" && draft) {
+    // defterde birikmemeli. Düzenleme modunda (F7) bu YANLIŞ: `draft.recipeId`
+    // burada var olan, zaten kaydedilmiş bir tarif — kaydetmeden çıkmak onu
+    // silmemeli, yalnızca değişiklikleri atmalı.
+    if (!isEditMode && stage === "review" && draft) {
       try {
         await discardDraft(draft.recipeId);
       } catch (e) {
@@ -177,7 +209,31 @@ export default function ImportScreen() {
       }
     }
     router.back();
-  }, [stage, draft]);
+  }, [stage, draft, isEditMode]);
+
+  // F7 — düzenlenecek tarif yüklenemedi (silinmiş, RLS reddetti, ağ hatası…).
+  // Bu ekran taze bir import taslağı için tasarlandığından (bkz. "pick"
+  // aşaması), edit modunda yükleme hatasında ona düşmüyoruz — kendi basit
+  // hata durumu.
+  if (isEditMode && loadFailed) {
+    return (
+      <View
+        className="flex-1 items-center justify-center bg-dark px-8"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
+        <Text style={{ fontSize: 40 }}>⚠️</Text>
+        <Text className="mt-3 text-center text-base font-medium text-hwhite">
+          Tarif yüklenemedi
+        </Text>
+        <Text className="mt-1.5 text-center text-sm text-hmuted">
+          Bağlantını kontrol edip tekrar dener misin?
+        </Text>
+        <Pressable onPress={() => router.back()} className="mt-6 rounded-xl bg-saffron px-6 py-3">
+          <Text className="font-medium text-hwhite">Geri dön</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   // ── 3d — Kaydedildi ───────────────────────────────────────────────────────
   if (stage === "saved") {
@@ -187,15 +243,21 @@ export default function ImportScreen() {
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
         <Text style={{ fontSize: 44 }}>✅</Text>
-        <Text className="mt-3 text-lg font-medium text-hwhite">Defterine kaydedildi</Text>
+        <Text className="mt-3 text-lg font-medium text-hwhite">
+          {isEditMode ? "Değişiklikler kaydedildi" : "Defterine kaydedildi"}
+        </Text>
         <Text className="mt-2 text-center text-sm text-hmuted">
-          Bu tarif yalnızca sana görünür. Hasat'ın herkese açık tarifleriyle karışmaz.
+          {isEditMode
+            ? "Tarifin güncellendi."
+            : "Bu tarif yalnızca sana görünür. Hasat'ın herkese açık tarifleriyle karışmaz."}
         </Text>
         <Pressable
           onPress={() => router.back()}
           className="mt-6 rounded-xl bg-saffron px-6 py-3"
         >
-          <Text className="font-medium text-hwhite">Defterime dön</Text>
+          <Text className="font-medium text-hwhite">
+            {isEditMode ? "Tarife dön" : "Defterime dön"}
+          </Text>
         </Pressable>
       </View>
     );
@@ -218,10 +280,14 @@ export default function ImportScreen() {
         {/* Belirsiz spinner — sabit ilerleme çubuğu bilinçli olarak YOK
             (şartname 3b: yanlış süre beklentisi vermemek için). */}
         <ActivityIndicator color="#C8833B" size="large" />
-        <Text className="mt-4 text-sm text-hwhite">Tarif okunuyor…</Text>
-        <Text className="mt-1 text-center text-xs text-hmuted">
-          Fotoğraflarda biraz daha uzun sürebilir.
+        <Text className="mt-4 text-sm text-hwhite">
+          {isEditMode ? "Tarif yükleniyor…" : "Tarif okunuyor…"}
         </Text>
+        {!isEditMode && (
+          <Text className="mt-1 text-center text-xs text-hmuted">
+            Fotoğraflarda biraz daha uzun sürebilir.
+          </Text>
+        )}
       </View>
     );
   }
@@ -239,7 +305,9 @@ export default function ImportScreen() {
           <Pressable onPress={close} hitSlop={12}>
             <Text className="text-xl text-hwhite">✕</Text>
           </Pressable>
-          <Text className="text-base font-medium text-hwhite">Kontrol Et</Text>
+          <Text className="text-base font-medium text-hwhite">
+            {isEditMode ? "Tarifi Düzenle" : "Kontrol Et"}
+          </Text>
           <Pressable
             disabled={saving}
             onPress={async () => {
