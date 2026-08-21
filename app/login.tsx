@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { takePendingSessionMessage } from "@/lib/hasat/sessionGuard";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { BrandLogo } from "@/components/hasat/BrandLogo";
 
 /**
  * Telefon OTP girişi — web'deki akışın aynısı (`src/routes/login.tsx`):
@@ -169,9 +170,13 @@ export default function LoginScreen() {
         className="flex-1 items-center justify-center px-6"
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
+        {/* Lockup değil, monogram+wordmark ayrı ayrı: assets/brand/hasat-lockup.svg'deki
+            ayırıcı çizgi (x=625) wordmark'ın son harfinin ("T", ink sağ kenarı ~x=652)
+            üzerinden geçiyor — frozen kaynak dosyadaki bir kusur, path geometrisi
+            değiştirilemediği için burada kendi dikey spacing'imizle birleştirdik. */}
         <View className="mb-10 items-center">
-          <Text className="text-5xl mb-2">🌸</Text>
-          <Text className="text-saffron text-4xl font-bold">Hasat</Text>
+          <BrandLogo variant="monogram" tone="dark" height={48} style={{ marginBottom: 10 }} />
+          <BrandLogo variant="wordmark" tone="dark" height={30} />
         </View>
 
         <View className="w-full max-w-sm">

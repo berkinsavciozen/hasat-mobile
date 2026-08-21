@@ -4,21 +4,19 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { View, Text, ActivityIndicator, AppState } from "react-native";
+import { View, ActivityIndicator, AppState } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
 import { configureNotifications, attachNotificationTapRouting } from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
 import { useHasatMobileSession } from "@/lib/store/session";
+import { BrandLogo } from "@/components/hasat/BrandLogo";
 
-// Final logo/app icon henüz yok (Berkin'in ayrı bir işi) — native splash
-// (app.json → "expo-splash-screen" plugin config'i) bu yüzden salt
-// `dark` arka plan rengi taşıyor, hiçbir görsele bağımlı değil. Marka
-// kimliği (🌸 + "Hasat") JS katmanında bu ekranla veriliyor — login.tsx'in
-// kendi ekranındaki aynı desen. Final logo geldiğinde güncellenecek İKİ yer:
-// (1) app.json'daki plugin config'ine `image` eklemek, (2) aşağıdaki
-// emoji/metni bir <Image> ile değiştirmek — ikisi de tek satırlık değişiklik.
+// Final logo geldi (Hasat OS Milestone 3 — Brand Identity Freeze, W2/M1).
+// Native splash (app.json → "expo-splash-screen" plugin) artık `image` de
+// taşıyor; JS katmanındaki bu ekran login.tsx'in aynı deseniyle marka
+// kimliğini (koyu zeminde beyaz monogram+wordmark) sürdürüyor.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -110,8 +108,11 @@ export default function RootLayout() {
   if (!bootstrapped) {
     return (
       <View className="flex-1 items-center justify-center bg-dark">
-        <Text className="mb-2 text-5xl">🌸</Text>
-        <Text className="mb-6 text-4xl font-bold text-saffron">Hasat</Text>
+        {/* login.tsx'teki aynı desen: lockup değil, monogram+wordmark ayrı ayrı
+            (bkz. login.tsx'teki not — lockup'ın ayırıcı çizgisi wordmark'ın son
+            harfinin üzerinden geçiyor, frozen kaynak dosya kusuru). */}
+        <BrandLogo variant="monogram" tone="dark" height={44} style={{ marginBottom: 10 }} />
+        <BrandLogo variant="wordmark" tone="dark" height={26} style={{ marginBottom: 24 }} />
         <ActivityIndicator color="#C8833B" />
       </View>
     );
