@@ -73,14 +73,14 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center px-6 pb-3 pt-2">
         <Pressable
           onPress={() => router.back()}
           className="mr-2 h-12 w-12 items-center justify-center"
           accessibilityLabel="Geri"
         >
-          <AppIcon name="chevron.left" color="#FDFAF5" />
+          <AppIcon name="back" color="#FDFAF5" />
         </Pressable>
         <Text className="font-serif text-xl font-bold text-hwhite">
           Hesabım
@@ -95,7 +95,7 @@ export default function ProfileScreen() {
       >
         <View className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <View className="flex-row items-center gap-3">
-            <View className="h-14 w-14 items-center justify-center rounded-full bg-teal">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-primary">
               <Text className="text-xl font-bold text-hwhite">
                 {displayName[0] ?? "A"}
               </Text>
@@ -132,11 +132,11 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityLabel="Bildirim tercihleri"
         >
-          <AppIcon name="bell.badge.fill" />
+          <AppIcon name="notificationPreferences" />
           <Text className="ml-3 flex-1 text-sm font-medium text-hwhite">
             Bildirim Tercihleri
           </Text>
-          <AppIcon name="chevron.right" size={16} />
+          <AppIcon name="chevronRight" size={16} />
         </Pressable>
 
         <Pressable
@@ -145,11 +145,11 @@ export default function ProfileScreen() {
           accessibilityRole="button"
           accessibilityLabel="Siparişlerim"
         >
-          <AppIcon name="shippingbox.fill" />
+          <AppIcon name="orders" />
           <Text className="ml-3 flex-1 text-sm font-medium text-hwhite">
             Siparişlerim
           </Text>
-          <AppIcon name="chevron.right" size={16} />
+          <AppIcon name="chevronRight" size={16} />
         </Pressable>
 
         <Pressable

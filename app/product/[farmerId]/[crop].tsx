@@ -72,7 +72,7 @@ export default function ProductScreen() {
   if (role === "farmer") {
     return (
       <View
-        className="flex-1 items-center justify-center bg-navy px-8"
+        className="flex-1 items-center justify-center bg-dark px-8"
         style={{ paddingTop: insets.top }}
       >
         <FarmerRedirectNotice />
@@ -103,10 +103,10 @@ export default function ProductScreen() {
   if (isLoading) {
     return (
       <View
-        className="flex-1 items-center justify-center bg-navy"
+        className="flex-1 items-center justify-center bg-dark"
         style={{ paddingTop: insets.top }}
       >
-        <ActivityIndicator color="#38A6B3" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -118,7 +118,7 @@ export default function ProductScreen() {
     // gelindi), bu yüzden `lockCropName` — huni atfı bozulmasın.
     return (
       <View
-        className="flex-1 items-center justify-center bg-navy px-8"
+        className="flex-1 items-center justify-center bg-dark px-8"
         style={{ paddingTop: insets.top }}
       >
         <Text className="text-center text-sm text-hmuted">
@@ -126,7 +126,7 @@ export default function ProductScreen() {
         </Text>
         <Pressable
           onPress={() => setRequestOpen(true)}
-          className="mt-4 min-h-12 justify-center rounded-xl bg-teal px-4 py-2.5"
+          className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-4 py-2.5"
         >
           <Text className="text-xs font-semibold text-hwhite">
             Bu ürünü talep et
@@ -181,7 +181,7 @@ export default function ProductScreen() {
   };
 
   return (
-    <KeyboardAvoidingScreen style={{ backgroundColor: "#071E2C" }}>
+    <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top + 16,
@@ -195,7 +195,7 @@ export default function ProductScreen() {
             className="h-12 w-12 items-center justify-center"
             accessibilityLabel="Geri"
           >
-            <AppIcon name="chevron.left" color="#FDFAF5" />
+            <AppIcon name="back" color="#FDFAF5" />
           </Pressable>
           <Text className="mt-2 font-serif text-2xl font-bold text-hwhite">
             {formatCropIngredient(first.crop)}
@@ -241,7 +241,7 @@ export default function ProductScreen() {
                 onPress={() => setDelivery(d.id)}
                 className="mb-2 flex-row items-center gap-3 rounded-xl border p-3"
                 style={{
-                  borderColor: on ? "#167F8C" : "rgba(255,255,255,0.15)",
+                  borderColor: on ? "#1F6E82" : "rgba(255,255,255,0.15)",
                   backgroundColor: on
                     ? "rgba(22,127,140,0.16)"
                     : "rgba(255,255,255,0.03)",
@@ -249,12 +249,12 @@ export default function ProductScreen() {
               >
                 <View
                   className="h-5 w-5 items-center justify-center rounded-full border-2"
-                  style={{ borderColor: on ? "#167F8C" : "#9A9186" }}
+                  style={{ borderColor: on ? "#1F6E82" : "#9A9186" }}
                 >
                   {on && (
                     <View
                       className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: "#167F8C" }}
+                      style={{ backgroundColor: "#1F6E82" }}
                     />
                   )}
                 </View>
@@ -278,7 +278,7 @@ export default function ProductScreen() {
                   onPress={() => setDeliveryDays(p.days)}
                   className="min-h-11 justify-center rounded-xl border px-3 py-2"
                   style={{
-                    borderColor: on ? "#167F8C" : "rgba(255,255,255,0.15)",
+                    borderColor: on ? "#1F6E82" : "rgba(255,255,255,0.15)",
                     backgroundColor: on
                       ? "rgba(22,127,140,0.16)"
                       : "transparent",
@@ -307,7 +307,7 @@ export default function ProductScreen() {
       </ScrollView>
 
       <View
-        className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-navy px-5 pt-3"
+        className="absolute inset-x-0 bottom-0 border-t border-white/10 bg-dark px-5 pt-3"
         style={{ paddingBottom: insets.bottom + 12 }}
       >
         <View className="flex-row items-center gap-4">
@@ -330,7 +330,7 @@ export default function ProductScreen() {
           <Pressable
             disabled={!canSubmit || createOffer.isPending}
             onPress={() => void submit()}
-            className="min-h-12 items-center justify-center rounded-xl bg-teal px-6 py-3.5"
+            className="min-h-12 items-center justify-center rounded-xl bg-primary px-6 py-3.5"
             style={{ opacity: !canSubmit || createOffer.isPending ? 0.4 : 1 }}
             accessibilityRole="button"
             accessibilityLabel="Teklif gönder"

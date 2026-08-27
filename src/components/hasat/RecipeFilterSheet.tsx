@@ -64,7 +64,7 @@ export function RecipeFilterSheet({
         }}
       >
         <ScrollView
-          className="max-h-[85%] rounded-t-2xl bg-navy"
+          className="max-h-[85%] rounded-t-2xl bg-dark"
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingBottom: insets.bottom + 16,
@@ -73,7 +73,12 @@ export function RecipeFilterSheet({
         >
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-base font-medium text-hwhite">Filtrele</Text>
-            <Pressable onPress={onClose} hitSlop={12}>
+            <Pressable
+              onPress={onClose}
+              className="h-11 w-11 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Filtreleri kapat"
+            >
               <Text className="text-xl text-hwhite">✕</Text>
             </Pressable>
           </View>
@@ -130,6 +135,12 @@ export function RecipeFilterSheet({
             }
             className="mb-2 min-h-12 flex-row items-center justify-between rounded-xl border border-white/15 bg-white/5 px-3 py-2.5"
             style={{ opacity: coverageAvailable ? 1 : 0.4 }}
+            accessibilityRole="switch"
+            accessibilityLabel="Malzemesi Hasat'ta olan tarifler"
+            accessibilityState={{
+              checked: filters.onlyAvailable,
+              disabled: !coverageAvailable,
+            }}
           >
             <Text className="flex-1 text-sm text-hwhite">
               Malzemesi Hasat'ta olan tarifler
@@ -138,7 +149,7 @@ export function RecipeFilterSheet({
               className="h-5 w-9 rounded-full p-0.5"
               style={{
                 backgroundColor: filters.onlyAvailable
-                  ? "#C8833B"
+                  ? "#1F6E82"
                   : "rgba(253,250,245,0.15)",
               }}
             >
@@ -163,7 +174,7 @@ export function RecipeFilterSheet({
             </Pressable>
             <Pressable
               onPress={onClose}
-              className="min-h-12 flex-1 items-center justify-center rounded-xl bg-teal py-3"
+              className="min-h-12 flex-1 items-center justify-center rounded-xl bg-primary py-3"
             >
               <Text className="text-sm font-medium text-hwhite">Uygula</Text>
             </Pressable>
@@ -188,13 +199,13 @@ function FilterChip({
       onPress={onPress}
       className="min-h-11 justify-center rounded-xl border px-3 py-1.5"
       style={{
-        borderColor: active ? "#167F8C" : "rgba(253,250,245,0.15)",
+        borderColor: active ? "#1F6E82" : "rgba(253,250,245,0.15)",
         backgroundColor: active ? "rgba(22,127,140,0.25)" : "transparent",
       }}
     >
       <Text
         className="text-xs"
-        style={{ color: active ? "#A9C7CF" : "rgba(253,250,245,0.7)" }}
+        style={{ color: active ? "#FDFAF5" : "rgba(253,250,245,0.7)" }}
       >
         {label}
       </Text>

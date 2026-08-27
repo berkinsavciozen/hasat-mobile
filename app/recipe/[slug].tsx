@@ -118,7 +118,7 @@ export default function RecipeDetailScreen() {
         className="flex-1 items-center justify-center bg-dark"
         style={{ paddingTop: insets.top }}
       >
-        <ActivityIndicator color="#C8833B" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -179,7 +179,7 @@ export default function RecipeDetailScreen() {
 
   return (
     <ScrollView
-      className="flex-1 bg-navy"
+      className="flex-1 bg-dark"
       contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
     >
       {isOffline && source === "cache" && <OfflineBanner />}
@@ -213,7 +213,7 @@ export default function RecipeDetailScreen() {
               Adım {resumeStepIndex + 1}/{steps.length}
             </Text>
           </View>
-          <Text className="text-sm font-medium text-teal-light">Devam Et</Text>
+          <Text className="text-sm font-medium text-teal">Devam Et</Text>
         </Pressable>
       )}
 
@@ -352,7 +352,7 @@ export default function RecipeDetailScreen() {
                 params: cookModeParams(resumeStepIndex),
               })
             }
-            className="mt-3 min-h-12 items-center justify-center rounded-2xl bg-teal py-4"
+            className="mt-3 min-h-12 items-center justify-center rounded-2xl bg-primary py-4"
           >
             <Text className="text-base font-medium text-hwhite">
               {resumeStepIndex != null ? "Devam Et" : "Pişirmeye Başla"}
@@ -422,8 +422,8 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
       accessibilityRole="button"
     >
       <AppIcon
-        name={isSaved ? "heart.fill" : "heart"}
-        color={isSaved ? "#C0392B" : "#A9C7CF"}
+        name={isSaved ? "favoriteSelected" : "favorite"}
+        color={isSaved ? "#C0392B" : "#8A8678"}
       />
     </Pressable>
   );
@@ -566,7 +566,7 @@ function IngredientCard({
                   })
                 }
                 hitSlop={8}
-                className="mt-1.5 min-h-11 self-start justify-center rounded-xl bg-teal px-3 py-1.5"
+                className="mt-1.5 min-h-11 self-start justify-center rounded-xl bg-primary px-3 py-1.5"
               >
                 <Text className="text-xs font-semibold text-hwhite">
                   Üretici Seçenekleri

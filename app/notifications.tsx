@@ -26,14 +26,20 @@ import {
   useMarkOneRead,
   type NotificationRow,
 } from "@/lib/hasat/notifications";
-import { AppIcon } from "@/components/hasat/AppIcon";
+import { AppIcon, type AppIconName } from "@/components/hasat/AppIcon";
+import { brand, semanticLight } from "@/lib/core/design/tokens";
 
-const ICON: Record<string, Parameters<typeof AppIcon>[0]["name"]> = {
-  offer_received: "envelope.fill",
-  offer_accepted: "checkmark.circle.fill",
-  offer_countered: "arrow.uturn.backward.circle.fill",
-  order_status: "shippingbox.fill",
-  crop_request_fulfilled: "leaf.fill",
+const VISUAL: Record<string, { icon: AppIconName; color: string }> = {
+  offer_received: { icon: "mail", color: brand.saffron },
+  offer_countered: { icon: "counter", color: brand.saffron },
+  subscription_request: { icon: "mail", color: brand.saffron },
+  offer_accepted: { icon: "success", color: brand.sage },
+  payment_received: { icon: "success", color: brand.sage },
+  subscription_accepted: { icon: "success", color: brand.sage },
+  crop_request_fulfilled: { icon: "leaf", color: brand.sage },
+  offer_rejected: { icon: "counter", color: brand.hred },
+  subscription_rejected: { icon: "counter", color: brand.hred },
+  order_status: { icon: "orders", color: semanticLight.primary },
 };
 
 const DEST: Record<string, "/orders" | "/home"> = {
@@ -74,15 +80,16 @@ export default function NotificationsScreen() {
   const markOne = useMarkOneRead();
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
         <View className="flex-row items-center">
           <Pressable
             onPress={() => router.back()}
             className="mr-2 h-12 w-12 items-center justify-center"
+            accessibilityRole="button"
             accessibilityLabel="Geri"
           >
-            <AppIcon name="chevron.left" color="#FDFAF5" />
+            <AppIcon name="back" color="#FDFAF5" />
           </Pressable>
           <Text className="font-serif text-xl font-bold text-hwhite">
             Bildirimler
@@ -105,11 +112,11 @@ export default function NotificationsScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#38A6B3" />
+          <ActivityIndicator color="#1F6E82" />
         </View>
       ) : !rows || rows.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
-          <AppIcon name="bell.slash.fill" size={36} />
+          <AppIcon name="notificationsOff" size={36} />
           <Text className="mt-3 text-center text-sm text-hmuted">
             Henüz bildirim yok.
           </Text>
@@ -124,6 +131,10 @@ export default function NotificationsScreen() {
           }}
           renderItem={({ item }) => {
             const unread = !item.read_at;
+            const visual = VISUAL[item.type] ?? {
+              icon: "bell" as const,
+              color: semanticLight.primary,
+            };
             return (
               <Pressable
                 onPress={() => {
@@ -133,14 +144,14 @@ export default function NotificationsScreen() {
                 className="mb-1 flex-row gap-3 rounded-xl px-3 py-3"
                 style={
                   unread
-                    ? { backgroundColor: "rgba(22,127,140,0.20)" }
+                    ? { backgroundColor: `${semanticLight.primary}33` }
                     : undefined
                 }
                 accessibilityRole="button"
                 accessibilityLabel={`${item.title}. ${item.body ?? ""}. ${relTime(item.created_at)}`}
               >
                 <View className="mt-0.5">
-                  <AppIcon name={ICON[item.type] ?? "bell.fill"} />
+                  <AppIcon name={visual.icon} color={visual.color} />
                 </View>
                 <View className="flex-1">
                   <Text

@@ -32,6 +32,8 @@ import {
 } from "@/lib/hasat/myRecipes";
 import {
   useFavoriteRecipes,
+  useIsRecipeSaved,
+  useToggleRecipeSave,
   type FavoriteRecipeItem,
 } from "@/lib/hasat/favorites";
 import { LOW_CONFIDENCE_THRESHOLD } from "@/lib/hasat/import";
@@ -150,6 +152,8 @@ export default function RecipeListScreen() {
     new Set(items.flatMap((r) => r.diet_tags)),
   ).sort();
   const filterCount = activeFilterCount(filters);
+  const hasSearch = search.trim().length > 0;
+  const hasActiveConstraints = hasSearch || filterCount > 0;
   const filteredItems = items.filter((r) => {
     const needle = search.trim().toLocaleLowerCase("tr-TR");
     if (
@@ -174,7 +178,7 @@ export default function RecipeListScreen() {
   });
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
         <View className="flex-1">
           <Text className="font-serif text-2xl font-bold text-hwhite">
@@ -192,7 +196,7 @@ export default function RecipeListScreen() {
             accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
           >
             <View>
-              <AppIcon name="bell.fill" />
+              <AppIcon name="bell" />
               {unreadCount > 0 && (
                 <View
                   className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
@@ -211,7 +215,7 @@ export default function RecipeListScreen() {
             accessibilityRole="button"
             accessibilityLabel="Siparişler"
           >
-            <AppIcon name="shippingbox.fill" />
+            <AppIcon name="orders" />
           </Pressable>
           <Pressable
             onPress={() => router.push("/profile")}
@@ -219,7 +223,7 @@ export default function RecipeListScreen() {
             accessibilityRole="button"
             accessibilityLabel="Profil"
           >
-            <AppIcon name="person.crop.circle.fill" />
+            <AppIcon name="profile" />
           </Pressable>
         </View>
       </View>
@@ -240,7 +244,7 @@ export default function RecipeListScreen() {
       {tab === "public" && (
         <View className="mx-4 mb-3 flex-row items-center gap-2">
           <View className="h-12 flex-1 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3">
-            <AppIcon name="magnifyingglass" size={18} />
+            <AppIcon name="search" size={18} />
             <TextInput
               value={search}
               onChangeText={setSearch}
@@ -257,7 +261,7 @@ export default function RecipeListScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
           >
-            <AppIcon name="line.3.horizontal.decrease" size={18} />
+            <AppIcon name="filter" size={18} />
             <Text className="text-xs text-hwhite">Filtrele</Text>
             {filterCount > 0 && (
               <View className="rounded-full bg-saffron px-1.5">
@@ -312,7 +316,7 @@ export default function RecipeListScreen() {
         </>
       ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#38A6B3" />
+          <ActivityIndicator color="#1F6E82" />
         </View>
       ) : showEmptyOfflineState ? (
         <View className="flex-1 items-center justify-center px-8">
@@ -325,7 +329,7 @@ export default function RecipeListScreen() {
           </Text>
           <Pressable
             onPress={() => refetch()}
-            className="mt-6 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+            className="mt-6 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
           >
             <Text className="font-medium text-hwhite">
               {isRefetching ? "Deneniyor…" : "Yeniden Dene"}
@@ -339,21 +343,42 @@ export default function RecipeListScreen() {
           </Text>
           <Pressable
             onPress={() => refetch()}
-            className="mt-4 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+            className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
           >
             <Text className="font-medium text-hwhite">Yeniden Dene</Text>
           </Pressable>
         </View>
-      ) : filterCount > 0 && filteredItems.length === 0 ? (
+      ) : hasActiveConstraints && filteredItems.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-center text-sm text-hmuted">
-            Bu filtrelerle eşleşen tarif yok.
+            {hasSearch && filterCount > 0
+              ? "Arama ve filtrelerle eşleşen tarif yok."
+              : hasSearch
+                ? `“${search.trim()}” aramasıyla eşleşen tarif yok.`
+                : "Bu filtrelerle eşleşen tarif yok."}
           </Text>
           <Pressable
-            onPress={() => setFilters(EMPTY_RECIPE_FILTERS)}
-            className="mt-4 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+            onPress={() => {
+              setSearch("");
+              setFilters(EMPTY_RECIPE_FILTERS);
+            }}
+            className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
+            accessibilityRole="button"
+            accessibilityLabel={
+              hasSearch && filterCount > 0
+                ? "Aramayı ve filtreleri temizle"
+                : hasSearch
+                  ? "Aramayı temizle"
+                  : "Filtreleri temizle"
+            }
           >
-            <Text className="font-medium text-hwhite">Filtreleri Temizle</Text>
+            <Text className="font-medium text-hwhite">
+              {hasSearch && filterCount > 0
+                ? "Aramayı ve Filtreleri Temizle"
+                : hasSearch
+                  ? "Aramayı Temizle"
+                  : "Filtreleri Temizle"}
+            </Text>
           </Pressable>
         </View>
       ) : (
@@ -387,7 +412,7 @@ export default function RecipeListScreen() {
           durumu kendi içinde açıklıyor. */}
       <Pressable
         onPress={() => router.push("/import")}
-        className="absolute right-5 min-h-12 justify-center rounded-xl bg-teal px-5 py-3.5"
+        className="absolute right-5 min-h-12 justify-center rounded-xl bg-primary px-5 py-3.5"
         accessibilityRole="button"
         accessibilityLabel="Tarif ekle"
         style={{ bottom: insets.bottom + 20 }}
@@ -427,7 +452,7 @@ function TabButton({
   return (
     <Pressable
       onPress={onPress}
-      className={`min-h-11 flex-1 items-center justify-center rounded-lg px-2 py-2 ${active ? "bg-teal" : ""}`}
+      className={`min-h-11 flex-1 items-center justify-center rounded-lg px-2 py-2 ${active ? "bg-primary" : ""}`}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
     >
@@ -465,7 +490,7 @@ function MyRecipesTab({
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#38A6B3" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -559,7 +584,7 @@ function FavoritesTab({
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#38A6B3" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -627,6 +652,8 @@ function RecipeCard({
   availableCount?: number;
 }) {
   const minutes = totalRecipeMinutes(recipe);
+  const { data: isSaved = false } = useIsRecipeSaved(recipe.id);
+  const toggle = useToggleRecipeSave(recipe.id);
   return (
     <Pressable
       onPress={() => router.push(`/recipe/${recipe.slug}`)}
@@ -640,6 +667,21 @@ function RecipeCard({
         alt={recipe.title}
         style={{ width: "100%", aspectRatio: 4 / 3 }}
       />
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation();
+          toggle.mutate(!isSaved);
+        }}
+        className="absolute right-3 top-3 h-12 w-12 items-center justify-center rounded-xl bg-dark/80"
+        accessibilityRole="button"
+        accessibilityLabel={isSaved ? "Favorilerden çıkar" : "Favorilere ekle"}
+        accessibilityState={{ selected: isSaved, busy: toggle.isPending }}
+      >
+        <AppIcon
+          name={isSaved ? "favoriteSelected" : "favorite"}
+          color={isSaved ? "#C0392B" : "#FDFAF5"}
+        />
+      </Pressable>
       <View className="px-4 py-3">
         <Text className="text-base font-medium text-hwhite" numberOfLines={2}>
           {recipe.title}
@@ -667,7 +709,7 @@ function RecipeCard({
           </View>
         )}
         {availableCount != null && (
-          <Text className="mt-2 text-[11px] text-teal-light">
+          <Text className="mt-2 text-[11px] text-teal">
             {availableCount > 0
               ? `${availableCount} malzeme için üretici seçeneği var`
               : "Malzeme seçenekleri henüz eşleşmedi"}

@@ -121,8 +121,8 @@ export default function CookModeScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-navy">
-        <ActivityIndicator color="#38A6B3" />
+      <View className="flex-1 items-center justify-center bg-dark">
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -130,7 +130,7 @@ export default function CookModeScreen() {
   if (!data || steps.length === 0) {
     return (
       <View
-        className="flex-1 items-center justify-center bg-navy px-8"
+        className="flex-1 items-center justify-center bg-dark px-8"
         style={{ paddingTop: insets.top }}
       >
         <Text className="text-center text-sm text-hmuted">
@@ -146,10 +146,15 @@ export default function CookModeScreen() {
   const isLast = index === steps.length - 1;
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       {/* Başlık: kapat + adım sayacı + ilerleme çubuğu (şartname Durum A) */}
       <View className="flex-row items-center justify-between px-5 pb-2 pt-1">
-        <Pressable onPress={() => router.back()} hitSlop={16} className="p-1">
+        <Pressable
+          onPress={() => router.back()}
+          className="h-12 w-12 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel="Pişirme modundan çık"
+        >
           <Text className="text-2xl text-hwhite">✕</Text>
         </Pressable>
         <Text className="text-sm text-hmuted">
@@ -160,7 +165,7 @@ export default function CookModeScreen() {
         {steps.map((s, i) => (
           <View
             key={s.id}
-            className={`h-1.5 flex-1 rounded-full ${i <= index ? "bg-teal" : "bg-white/15"}`}
+            className={`h-1.5 flex-1 rounded-full ${i <= index ? "bg-primary" : "bg-white/15"}`}
           />
         ))}
       </View>
@@ -234,7 +239,7 @@ export default function CookModeScreen() {
                     timer.acknowledgeFinish();
                     void timer.start();
                   }}
-                  className="min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+                  className="min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
                 >
                   <Text className="font-medium text-hwhite">
                     {timer.remainingMs > 0 &&
@@ -288,7 +293,7 @@ export default function CookModeScreen() {
                   permissionResolver.current?.(granted);
                   permissionResolver.current = null;
                 }}
-                className="min-h-12 justify-center rounded-xl bg-teal px-4 py-2.5"
+                className="min-h-12 justify-center rounded-xl bg-primary px-4 py-2.5"
               >
                 <Text className="text-sm font-medium text-hwhite">
                   İzin ver
@@ -322,7 +327,7 @@ export default function CookModeScreen() {
               setIndex((i) => Math.min(steps.length - 1, i + 1));
             }
           }}
-          className={`min-h-12 flex-1 items-center justify-center rounded-2xl py-4 ${isLast ? "bg-sage" : "bg-teal"}`}
+          className={`min-h-12 flex-1 items-center justify-center rounded-2xl py-4 ${isLast ? "bg-success" : "bg-primary"}`}
         >
           <Text className="text-base font-medium text-hwhite">
             {isLast ? "Bitir ✓" : "Sonraki →"}

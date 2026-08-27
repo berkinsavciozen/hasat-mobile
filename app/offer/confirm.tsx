@@ -13,7 +13,7 @@ export default function OfferConfirmScreen() {
 
   return (
     <View
-      className="flex-1 items-center justify-center bg-navy px-8"
+      className="flex-1 items-center justify-center bg-dark px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       <Text style={{ fontSize: 56 }}>✅</Text>
@@ -29,13 +29,13 @@ export default function OfferConfirmScreen() {
         Üretici teklifinizi inceleyecek — çiftçi yanıtladığında bildirim
         alacaksın.
       </Text>
-      <Text className="mt-2 text-center text-xs text-teal-light">
+      <Text className="mt-2 text-center text-xs text-teal">
         Bu işlem ödeme değildir. Kabul edilen teklif için ödeme adımı ayrıca
         hazırlanır.
       </Text>
       <Pressable
         onPress={() => router.replace("/orders")}
-        className="mt-8 min-h-12 w-full items-center justify-center rounded-xl bg-teal py-3.5"
+        className="mt-8 min-h-12 w-full items-center justify-center rounded-xl bg-primary py-3.5"
       >
         <Text className="text-sm font-medium text-hwhite">Siparişlerim</Text>
       </Pressable>

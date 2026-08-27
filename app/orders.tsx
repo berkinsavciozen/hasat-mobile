@@ -69,14 +69,14 @@ export default function OrdersScreen() {
   // (bkz. FarmerRedirectNotice dosya başı notu).
   if (role === "farmer") {
     return (
-      <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+      <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
         <View className="flex-row items-center px-6 pb-3 pt-2">
           <Pressable
             onPress={() => router.back()}
             className="mr-2 h-12 w-12 items-center justify-center"
             accessibilityLabel="Geri"
           >
-            <AppIcon name="chevron.left" color="#FDFAF5" />
+            <AppIcon name="back" color="#FDFAF5" />
           </Pressable>
           <Text className="font-serif text-xl font-bold text-hwhite">
             Siparişlerim
@@ -90,14 +90,14 @@ export default function OrdersScreen() {
   }
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center px-6 pb-3 pt-2">
         <Pressable
           onPress={() => router.back()}
           className="mr-2 h-12 w-12 items-center justify-center"
           accessibilityLabel="Geri"
         >
-          <AppIcon name="chevron.left" color="#FDFAF5" />
+          <AppIcon name="back" color="#FDFAF5" />
         </Pressable>
         <Text className="font-serif text-xl font-bold text-hwhite">
           Siparişlerim
@@ -107,7 +107,7 @@ export default function OrdersScreen() {
       <View className="mx-4 mb-3 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
         <Pressable
           onPress={() => setTab("offers")}
-          className={`min-h-11 flex-1 items-center justify-center rounded-lg py-2 ${tab === "offers" ? "bg-teal" : ""}`}
+          className={`min-h-11 flex-1 items-center justify-center rounded-lg py-2 ${tab === "offers" ? "bg-primary" : ""}`}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === "offers" }}
         >
@@ -119,7 +119,7 @@ export default function OrdersScreen() {
         </Pressable>
         <Pressable
           onPress={() => setTab("orders")}
-          className={`min-h-11 flex-1 items-center justify-center rounded-lg py-2 ${tab === "orders" ? "bg-teal" : ""}`}
+          className={`min-h-11 flex-1 items-center justify-center rounded-lg py-2 ${tab === "orders" ? "bg-primary" : ""}`}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === "orders" }}
         >
@@ -134,7 +134,7 @@ export default function OrdersScreen() {
       {tab === "offers" ? (
         offersLoading ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#38A6B3" />
+            <ActivityIndicator color="#1F6E82" />
           </View>
         ) : (
           <FlatList
@@ -156,7 +156,7 @@ export default function OrdersScreen() {
         )
       ) : ordersLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#38A6B3" />
+          <ActivityIndicator color="#1F6E82" />
         </View>
       ) : (
         <FlatList

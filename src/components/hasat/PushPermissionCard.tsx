@@ -35,7 +35,7 @@ export function PushPermissionCard({
         <Pressable
           disabled={busy}
           onPress={onAccept}
-          className="min-h-11 justify-center rounded-xl bg-teal px-4 py-2"
+          className="min-h-11 justify-center rounded-xl bg-primary px-4 py-2"
           style={{ opacity: busy ? 0.5 : 1 }}
         >
           <Text className="text-xs font-medium text-hwhite">

@@ -23,10 +23,12 @@ function Toggle({
   on,
   disabled,
   onPress,
+  label,
 }: {
   on: boolean;
   disabled?: boolean;
   onPress?: () => void;
+  label: string;
 }) {
   return (
     <Pressable
@@ -34,9 +36,12 @@ function Toggle({
       onPress={onPress}
       className="h-11 w-12 items-center justify-center rounded-full p-0.5"
       style={{
-        backgroundColor: on ? "#167F8C" : "rgba(253,250,245,0.15)",
+        backgroundColor: on ? "#1F6E82" : "rgba(253,250,245,0.15)",
         opacity: disabled ? 0.5 : 1,
       }}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on, disabled: !!disabled }}
     >
       <View
         className="h-4 w-4 rounded-full bg-hwhite"
@@ -59,9 +64,14 @@ export default function NotifPrefsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center px-6 pb-3 pt-2">
-        <Pressable onPress={() => router.back()} hitSlop={12} className="mr-3">
+        <Pressable
+          onPress={() => router.back()}
+          className="mr-2 h-11 w-11 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel="Bildirim tercihlerinden geri dön"
+        >
           <Text className="text-xl text-hwhite">←</Text>
         </Pressable>
         <Text className="font-serif text-xl font-bold text-hwhite">
@@ -71,7 +81,7 @@ export default function NotifPrefsScreen() {
 
       {isLoading || !prefs ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#38A6B3" />
+          <ActivityIndicator color="#1F6E82" />
         </View>
       ) : (
         <ScrollView
@@ -125,6 +135,7 @@ export default function NotifPrefsScreen() {
                         <Toggle
                           on={prefs[col]}
                           disabled={comingSoon || update.isPending}
+                          label={`${e.label}, ${c.label}`}
                           onPress={
                             comingSoon
                               ? undefined

@@ -128,7 +128,7 @@ export default function RootLayout() {
           height={26}
           style={{ marginBottom: 24 }}
         />
-        <ActivityIndicator color="#38A6B3" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
