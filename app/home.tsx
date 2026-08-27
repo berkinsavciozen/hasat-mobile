@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -32,7 +32,6 @@ import {
 } from "@/lib/hasat/myRecipes";
 import {
   useFavoriteRecipes,
-  useIsRecipeSaved,
   useToggleRecipeSave,
   type FavoriteRecipeItem,
 } from "@/lib/hasat/favorites";
@@ -80,7 +79,7 @@ export default function RecipeListScreen() {
   // F5 — "Favorilerim", "Tariflerim"den (kendi importlarım) AYRI bir alt
   // sekme: ikisi hiçbir zaman aynı listede karışmıyor.
   const [mineSubTab, setMineSubTab] = useState<"own" | "favorites">("own");
-  const favorites = useFavoriteRecipes(tab === "mine");
+  const favorites = useFavoriteRecipes();
   const [refreshing, setRefreshing] = useState(false);
 
   // ── F13-dar: süre/malzeme/diyet filtresi ──────────────────────────────────
@@ -147,6 +146,10 @@ export default function RecipeListScreen() {
   const showEmptyOfflineState = isOffline && !isLoading && items.length === 0;
   const myItems = mine.data ?? [];
   const favoriteItems = favorites.data ?? [];
+  const savedRecipeIds = useMemo(
+    () => new Set(favoriteItems.map((recipe) => recipe.id)),
+    [favoriteItems],
+  );
 
   const dietTags = Array.from(
     new Set(items.flatMap((r) => r.diet_tags)),
@@ -398,6 +401,8 @@ export default function RecipeListScreen() {
           renderItem={({ item }) => (
             <RecipeCard
               recipe={item}
+              isSaved={savedRecipeIds.has(item.id)}
+              favoriteStateLoading={favorites.isLoading}
               availableCount={
                 coverage.data?.get(item.id)?.available_count ?? undefined
               }
@@ -646,14 +651,25 @@ function FavoritesTab({
 
 function RecipeCard({
   recipe,
+  isSaved,
+  favoriteStateLoading,
   availableCount,
 }: {
   recipe: RecipeListItem;
+  isSaved: boolean;
+  favoriteStateLoading: boolean;
   availableCount?: number;
 }) {
   const minutes = totalRecipeMinutes(recipe);
-  const { data: isSaved = false } = useIsRecipeSaved(recipe.id);
+  const [optimisticSaved, setOptimisticSaved] = useState(isSaved);
   const toggle = useToggleRecipeSave(recipe.id);
+
+  useEffect(() => {
+    setOptimisticSaved(isSaved);
+  }, [isSaved]);
+
+  const favoriteBusy = favoriteStateLoading || toggle.isPending;
+
   return (
     <Pressable
       onPress={() => router.push(`/recipe/${recipe.slug}`)}
@@ -668,18 +684,30 @@ function RecipeCard({
         style={{ width: "100%", aspectRatio: 4 / 3 }}
       />
       <Pressable
+        disabled={favoriteBusy}
         onPress={(event) => {
           event.stopPropagation();
-          toggle.mutate(!isSaved);
+          const previousSaved = optimisticSaved;
+          const nextSaved = !previousSaved;
+          setOptimisticSaved(nextSaved);
+          toggle.mutate(nextSaved, {
+            onError: () => setOptimisticSaved(previousSaved),
+          });
         }}
         className="absolute right-3 top-3 h-12 w-12 items-center justify-center rounded-xl bg-dark/80"
         accessibilityRole="button"
-        accessibilityLabel={isSaved ? "Favorilerden çıkar" : "Favorilere ekle"}
-        accessibilityState={{ selected: isSaved, busy: toggle.isPending }}
+        accessibilityLabel={
+          optimisticSaved ? "Favorilerden çıkar" : "Favorilere ekle"
+        }
+        accessibilityState={{
+          selected: optimisticSaved,
+          busy: favoriteBusy,
+          disabled: favoriteBusy,
+        }}
       >
         <AppIcon
-          name={isSaved ? "favoriteSelected" : "favorite"}
-          color={isSaved ? "#C0392B" : "#FDFAF5"}
+          name={optimisticSaved ? "favoriteSelected" : "favorite"}
+          color={optimisticSaved ? "#C0392B" : "#FDFAF5"}
         />
       </Pressable>
       <View className="px-4 py-3">

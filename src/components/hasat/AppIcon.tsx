@@ -27,7 +27,11 @@ export const APP_ICON_MAP = {
     android: "chevron_right",
     web: "chevron_right",
   },
-  favorite: { ios: "heart", android: "favorite", web: "favorite" },
+  favorite: {
+    ios: "heart",
+    android: "favorite_border",
+    web: "favorite_border",
+  },
   favoriteSelected: { ios: "heart.fill", android: "favorite", web: "favorite" },
   mail: { ios: "envelope.fill", android: "mail", web: "mail" },
   success: {
