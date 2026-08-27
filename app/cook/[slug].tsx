@@ -35,7 +35,11 @@ import {
 
 export default function CookModeScreen() {
   const insets = useSafeAreaInsets();
-  const { slug, own, step: stepParam } = useLocalSearchParams<{
+  const {
+    slug,
+    own,
+    step: stepParam,
+  } = useLocalSearchParams<{
     slug: string;
     own?: string;
     step?: string;
@@ -118,7 +122,7 @@ export default function CookModeScreen() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-dark">
-        <ActivityIndicator color="#C8833B" />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }
@@ -145,7 +149,12 @@ export default function CookModeScreen() {
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       {/* Başlık: kapat + adım sayacı + ilerleme çubuğu (şartname Durum A) */}
       <View className="flex-row items-center justify-between px-5 pb-2 pt-1">
-        <Pressable onPress={() => router.back()} hitSlop={16} className="p-1">
+        <Pressable
+          onPress={() => router.back()}
+          className="h-12 w-12 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel="Pişirme modundan çık"
+        >
           <Text className="text-2xl text-hwhite">✕</Text>
         </Pressable>
         <Text className="text-sm text-hmuted">
@@ -156,12 +165,14 @@ export default function CookModeScreen() {
         {steps.map((s, i) => (
           <View
             key={s.id}
-            className={`h-1.5 flex-1 rounded-full ${i <= index ? "bg-saffron" : "bg-white/15"}`}
+            className={`h-1.5 flex-1 rounded-full ${i <= index ? "bg-primary" : "bg-white/15"}`}
           />
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+      >
         {step.photo_url ? (
           <Image
             source={{ uri: step.photo_url }}
@@ -173,12 +184,19 @@ export default function CookModeScreen() {
             src={recipe.displayPhotoUrl}
             isRepresentative={recipe.isRepresentativePhoto}
             alt={recipe.title}
-            style={{ width: "100%", height: 176, borderRadius: 16, marginBottom: 16 }}
+            style={{
+              width: "100%",
+              height: 176,
+              borderRadius: 16,
+              marginBottom: 16,
+            }}
           />
         ) : null}
 
         {/* Mutfakta uzaktan okunabilirlik: min ~20sp (şartname Durum A) */}
-        <Text className="text-[22px] leading-8 text-hwhite">{step.instruction}</Text>
+        <Text className="text-[22px] leading-8 text-hwhite">
+          {step.instruction}
+        </Text>
 
         {timer.isLongProcess && step.timer_seconds != null && (
           // Uç durum — çok uzun timer: geri sayım YOK, açıklama metni
@@ -187,8 +205,8 @@ export default function CookModeScreen() {
               Tahmini süre: {formatTimer(step.timer_seconds)}
             </Text>
             <Text className="mt-1 text-xs text-hmuted">
-              Bu kadar uzun bir bekleme için geri sayım tutulmuyor — telefonunu açık
-              tutmana gerek yok.
+              Bu kadar uzun bir bekleme için geri sayım tutulmuyor — telefonunu
+              açık tutmana gerek yok.
             </Text>
           </View>
         )}
@@ -196,17 +214,22 @@ export default function CookModeScreen() {
         {timer.available && (
           // Durum B — timer'lı adım: metnin ALTINDA ayrı kart
           <View className="mt-5 items-center rounded-2xl border border-white/10 bg-white/5 p-5">
-            <Text className="font-mono text-5xl text-hwhite">
+            <Text
+              className="text-5xl text-hwhite"
+              style={{ fontVariant: ["tabular-nums"] }}
+            >
               {formatCountdown(timer.remainingMs)}
             </Text>
             {timer.finished && (
-              <Text className="mt-2 text-sm font-medium text-gold">⏰ Süre doldu</Text>
+              <Text className="mt-2 text-sm font-medium text-gold">
+                ⏰ Süre doldu
+              </Text>
             )}
             <View className="mt-4 flex-row items-center gap-3">
               {timer.running ? (
                 <Pressable
                   onPress={() => void timer.pause()}
-                  className="rounded-xl border border-white/20 px-5 py-3"
+                  className="min-h-12 justify-center rounded-xl border border-white/20 px-5 py-3"
                 >
                   <Text className="font-medium text-hwhite">⏸ Durdur</Text>
                 </Pressable>
@@ -216,10 +239,11 @@ export default function CookModeScreen() {
                     timer.acknowledgeFinish();
                     void timer.start();
                   }}
-                  className="rounded-xl bg-saffron px-6 py-3"
+                  className="min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
                 >
                   <Text className="font-medium text-hwhite">
-                    {timer.remainingMs > 0 && timer.remainingMs < (step.timer_seconds ?? 0) * 1000
+                    {timer.remainingMs > 0 &&
+                    timer.remainingMs < (step.timer_seconds ?? 0) * 1000
                       ? "▶ Devam et"
                       : "▶ Başlat"}
                   </Text>
@@ -227,7 +251,7 @@ export default function CookModeScreen() {
               )}
               <Pressable
                 onPress={() => void timer.reset()}
-                className="rounded-xl border border-white/20 px-5 py-3"
+                className="min-h-12 justify-center rounded-xl border border-white/20 px-5 py-3"
               >
                 <Text className="font-medium text-hwhite">↺ Sıfırla</Text>
               </Pressable>
@@ -247,9 +271,9 @@ export default function CookModeScreen() {
               Süre dolunca haber verelim mi?
             </Text>
             <Text className="mt-2 text-sm text-hmuted">
-              Telefonu bırakıp mutfaktan ayrılsan bile uyarabilmemiz için bildirim izni
-              gerekiyor. İzin vermezsen timer yine çalışır — sadece uygulama kapalıyken
-              haber veremeyiz.
+              Telefonu bırakıp mutfaktan ayrılsan bile uyarabilmemiz için
+              bildirim izni gerekiyor. İzin vermezsen timer yine çalışır —
+              sadece uygulama kapalıyken haber veremeyiz.
             </Text>
             <View className="mt-5 flex-row justify-end gap-3">
               <Pressable
@@ -269,9 +293,11 @@ export default function CookModeScreen() {
                   permissionResolver.current?.(granted);
                   permissionResolver.current = null;
                 }}
-                className="rounded-xl bg-saffron px-4 py-2.5"
+                className="min-h-12 justify-center rounded-xl bg-primary px-4 py-2.5"
               >
-                <Text className="text-sm font-medium text-hwhite">İzin ver</Text>
+                <Text className="text-sm font-medium text-hwhite">
+                  İzin ver
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -286,7 +312,7 @@ export default function CookModeScreen() {
         <Pressable
           disabled={index === 0}
           onPress={() => setIndex((i) => Math.max(0, i - 1))}
-          className="flex-1 items-center rounded-2xl border border-white/20 py-4"
+          className="min-h-12 flex-1 items-center justify-center rounded-2xl border border-white/20 py-4"
           style={{ opacity: index === 0 ? 0.35 : 1 }}
         >
           <Text className="text-base font-medium text-hwhite">← Önceki</Text>
@@ -301,7 +327,7 @@ export default function CookModeScreen() {
               setIndex((i) => Math.min(steps.length - 1, i + 1));
             }
           }}
-          className="flex-1 items-center rounded-2xl bg-saffron py-4"
+          className={`min-h-12 flex-1 items-center justify-center rounded-2xl py-4 ${isLast ? "bg-success" : "bg-primary"}`}
         >
           <Text className="text-base font-medium text-hwhite">
             {isLast ? "Bitir ✓" : "Sonraki →"}

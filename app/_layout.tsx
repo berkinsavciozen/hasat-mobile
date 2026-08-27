@@ -8,7 +8,10 @@ import { View, ActivityIndicator, AppState } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
-import { configureNotifications, attachNotificationTapRouting } from "@/lib/native/notifications";
+import {
+  configureNotifications,
+  attachNotificationTapRouting,
+} from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { BrandLogo } from "@/components/hasat/BrandLogo";
@@ -92,7 +95,9 @@ export default function RootLayout() {
           .eq("id", session.user.id)
           .single();
         if (profile) {
-          useHasatMobileSession.getState().setRole(profile.role === "buyer" ? "buyer" : "farmer");
+          useHasatMobileSession
+            .getState()
+            .setRole(profile.role === "buyer" ? "buyer" : "farmer");
         }
       })
       .finally(() => setBootstrapped(true));
@@ -111,9 +116,19 @@ export default function RootLayout() {
         {/* login.tsx'teki aynı desen: lockup değil, monogram+wordmark ayrı ayrı
             (bkz. login.tsx'teki not — lockup'ın ayırıcı çizgisi wordmark'ın son
             harfinin üzerinden geçiyor, frozen kaynak dosya kusuru). */}
-        <BrandLogo variant="monogram" tone="dark" height={44} style={{ marginBottom: 10 }} />
-        <BrandLogo variant="wordmark" tone="dark" height={26} style={{ marginBottom: 24 }} />
-        <ActivityIndicator color="#C8833B" />
+        <BrandLogo
+          variant="monogram"
+          tone="dark"
+          height={44}
+          style={{ marginBottom: 10 }}
+        />
+        <BrandLogo
+          variant="wordmark"
+          tone="dark"
+          height={26}
+          style={{ marginBottom: 24 }}
+        />
+        <ActivityIndicator color="#1F6E82" />
       </View>
     );
   }

@@ -10,7 +10,13 @@
 // `src/lib/native/notifications.ts`teki push-tap `EVENT_ROUTE`'un
 // (`notifications.type` yerine push payload event key'i kullanan) aynısı,
 // yalnızca isim uzayı `notifications.type` sütununa çevrildi.
-import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import {
@@ -20,13 +26,20 @@ import {
   useMarkOneRead,
   type NotificationRow,
 } from "@/lib/hasat/notifications";
+import { AppIcon, type AppIconName } from "@/components/hasat/AppIcon";
+import { brand, semanticLight } from "@/lib/core/design/tokens";
 
-const ICON: Record<string, string> = {
-  offer_received: "📬",
-  offer_accepted: "✅",
-  offer_countered: "↩️",
-  order_status: "📦",
-  crop_request_fulfilled: "🎉",
+const VISUAL: Record<string, { icon: AppIconName; color: string }> = {
+  offer_received: { icon: "mail", color: brand.saffron },
+  offer_countered: { icon: "counter", color: brand.saffron },
+  subscription_request: { icon: "mail", color: brand.saffron },
+  offer_accepted: { icon: "success", color: brand.sage },
+  payment_received: { icon: "success", color: brand.sage },
+  subscription_accepted: { icon: "success", color: brand.sage },
+  crop_request_fulfilled: { icon: "leaf", color: brand.sage },
+  offer_rejected: { icon: "counter", color: brand.hred },
+  subscription_rejected: { icon: "counter", color: brand.hred },
+  order_status: { icon: "orders", color: semanticLight.primary },
 };
 
 const DEST: Record<string, "/orders" | "/home"> = {
@@ -70,17 +83,28 @@ export default function NotificationsScreen() {
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
         <View className="flex-row items-center">
-          <Pressable onPress={() => router.back()} hitSlop={12} className="mr-3">
-            <Text className="text-xl text-hwhite">←</Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mr-2 h-12 w-12 items-center justify-center"
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
+          >
+            <AppIcon name="back" color="#FDFAF5" />
           </Pressable>
-          <Text className="font-serif text-xl font-bold text-hwhite">Bildirimler</Text>
+          <Text className="font-serif text-xl font-bold text-hwhite">
+            Bildirimler
+          </Text>
         </View>
         <Pressable
           onPress={() => markAll.mutate()}
           disabled={count === 0 || markAll.isPending}
-          hitSlop={8}
+          className="min-h-11 justify-center px-2"
+          accessibilityRole="button"
         >
-          <Text className="text-xs text-hmuted underline" style={{ opacity: count === 0 ? 0.3 : 0.8 }}>
+          <Text
+            className="text-xs text-hmuted underline"
+            style={{ opacity: count === 0 ? 0.3 : 0.8 }}
+          >
             Tümünü okundu işaretle
           </Text>
         </Pressable>
@@ -88,20 +112,29 @@ export default function NotificationsScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#C8833B" />
+          <ActivityIndicator color="#1F6E82" />
         </View>
       ) : !rows || rows.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
-          <Text style={{ fontSize: 36 }}>🔔</Text>
-          <Text className="mt-3 text-center text-sm text-hmuted">Henüz bildirim yok.</Text>
+          <AppIcon name="notificationsOff" size={36} />
+          <Text className="mt-3 text-center text-sm text-hmuted">
+            Henüz bildirim yok.
+          </Text>
         </View>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(n) => n.id}
-          contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{
+            padding: 12,
+            paddingBottom: insets.bottom + 24,
+          }}
           renderItem={({ item }) => {
             const unread = !item.read_at;
+            const visual = VISUAL[item.type] ?? {
+              icon: "bell" as const,
+              color: semanticLight.primary,
+            };
             return (
               <Pressable
                 onPress={() => {
@@ -109,19 +142,34 @@ export default function NotificationsScreen() {
                   router.push(destFor(item));
                 }}
                 className="mb-1 flex-row gap-3 rounded-xl px-3 py-3"
-                style={unread ? { backgroundColor: "rgba(253,250,245,0.08)" } : undefined}
+                style={
+                  unread
+                    ? { backgroundColor: `${semanticLight.primary}33` }
+                    : undefined
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`${item.title}. ${item.body ?? ""}. ${relTime(item.created_at)}`}
               >
-                <Text className="mt-0.5 text-xl leading-none">{ICON[item.type] ?? "🔔"}</Text>
+                <View className="mt-0.5">
+                  <AppIcon name={visual.icon} color={visual.color} />
+                </View>
                 <View className="flex-1">
-                  <Text className={`text-sm ${unread ? "font-semibold text-hwhite" : "text-hwhite/90"}`}>
+                  <Text
+                    className={`text-sm ${unread ? "font-semibold text-hwhite" : "text-hwhite/90"}`}
+                  >
                     {item.title}
                   </Text>
                   {item.body ? (
-                    <Text className="mt-0.5 text-xs text-hmuted" numberOfLines={2}>
+                    <Text
+                      className="mt-0.5 text-xs text-hmuted"
+                      numberOfLines={2}
+                    >
                       {item.body}
                     </Text>
                   ) : null}
-                  <Text className="mt-1 text-[10px] text-hmuted/70">{relTime(item.created_at)}</Text>
+                  <Text className="mt-1 text-[10px] text-hmuted/70">
+                    {relTime(item.created_at)}
+                  </Text>
                 </View>
               </Pressable>
             );

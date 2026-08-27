@@ -64,6 +64,9 @@ module.exports = {
     extend: {
       colors: {
         ...brand,
+        success: brand.sage,
+        warning: brand.saffron,
+        danger: brand.hred,
         background: semanticLight.background,
         foreground: semanticLight.foreground,
         card: semanticLight.card,
