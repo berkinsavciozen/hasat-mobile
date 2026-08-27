@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  ActivityIndicator,
+  TextInput,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useIsOffline } from "@/lib/net/useIsOffline";
@@ -18,11 +25,21 @@ import {
   DIFFICULTY_LABELS,
   type RecipeListItem,
 } from "@/lib/hasat/recipes";
-import { useMyRecipes, SOURCE_TYPE_LABELS, type MyRecipeItem } from "@/lib/hasat/myRecipes";
-import { useFavoriteRecipes, type FavoriteRecipeItem } from "@/lib/hasat/favorites";
+import {
+  useMyRecipes,
+  SOURCE_TYPE_LABELS,
+  type MyRecipeItem,
+} from "@/lib/hasat/myRecipes";
+import {
+  useFavoriteRecipes,
+  type FavoriteRecipeItem,
+} from "@/lib/hasat/favorites";
 import { LOW_CONFIDENCE_THRESHOLD } from "@/lib/hasat/import";
 import { getNotificationPermission } from "@/lib/native/notifications";
-import { registerPushTokenIfPermitted, requestPushPermissionWithContext } from "@/lib/native/push";
+import {
+  registerPushTokenIfPermitted,
+  requestPushPermissionWithContext,
+} from "@/lib/native/push";
 import {
   RecipeFilterSheet,
   EMPTY_RECIPE_FILTERS,
@@ -30,6 +47,7 @@ import {
   type RecipeFilters,
 } from "@/components/hasat/RecipeFilterSheet";
 import { useUnreadCount } from "@/lib/hasat/notifications";
+import { AppIcon } from "@/components/hasat/AppIcon";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -67,6 +85,7 @@ export default function RecipeListScreen() {
   const coverage = useRecipeCoverage();
   const [filters, setFilters] = useState<RecipeFilters>(EMPTY_RECIPE_FILTERS);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
   // ── F10-lite: bell ─────────────────────────────────────────────────────────
   const { data: unreadCount = 0 } = useUnreadCount();
@@ -127,9 +146,19 @@ export default function RecipeListScreen() {
   const myItems = mine.data ?? [];
   const favoriteItems = favorites.data ?? [];
 
-  const dietTags = Array.from(new Set(items.flatMap((r) => r.diet_tags))).sort();
+  const dietTags = Array.from(
+    new Set(items.flatMap((r) => r.diet_tags)),
+  ).sort();
   const filterCount = activeFilterCount(filters);
   const filteredItems = items.filter((r) => {
+    const needle = search.trim().toLocaleLowerCase("tr-TR");
+    if (
+      needle &&
+      ![r.title, r.cuisine, ...r.diet_tags]
+        .filter(Boolean)
+        .some((value) => value!.toLocaleLowerCase("tr-TR").includes(needle))
+    )
+      return false;
     if (filters.diet && !r.diet_tags.includes(filters.diet)) return false;
     if (filters.duration) {
       const mins = activeRecipeMinutes(r);
@@ -145,22 +174,25 @@ export default function RecipeListScreen() {
   });
 
   return (
-    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-navy" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
         <View className="flex-1">
-          <Text className="font-serif text-2xl font-bold text-hwhite">Tarifler</Text>
+          <Text className="font-serif text-2xl font-bold text-hwhite">
+            Tarifler
+          </Text>
           <Text className="text-xs text-hmuted">
             Mevsiminde, çiftçiden doğrudan malzemeyle pişirin.
           </Text>
         </View>
-        {/* Metin/emoji glifleri — proje hiçbir yerde ikon kütüphanesi
-            kullanmıyor (login.tsx/index.tsx aynı desen); `lucide-react-native`
-            eklemek `react-native-svg` native bağımlılığı getirir, EAS build
-            kotası kısıtlıyken (bkz. M5-a-ek-2) gereksiz bir risk. */}
         <View className="flex-row items-center gap-1">
-          <Pressable onPress={() => router.push("/notifications")} hitSlop={12} className="p-2">
+          <Pressable
+            onPress={() => router.push("/notifications")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
+          >
             <View>
-              <Text className="text-xs text-hmuted">🔔</Text>
+              <AppIcon name="bell.fill" />
               {unreadCount > 0 && (
                 <View
                   className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
@@ -173,11 +205,21 @@ export default function RecipeListScreen() {
               )}
             </View>
           </Pressable>
-          <Pressable onPress={() => router.push("/orders")} hitSlop={12} className="p-2">
-            <Text className="text-xs text-hmuted">📦</Text>
+          <Pressable
+            onPress={() => router.push("/orders")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel="Siparişler"
+          >
+            <AppIcon name="shippingbox.fill" />
           </Pressable>
-          <Pressable onPress={() => router.push("/profile")} hitSlop={12} className="p-2">
-            <Text className="text-xs text-hmuted">👤</Text>
+          <Pressable
+            onPress={() => router.push("/profile")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel="Profil"
+          >
+            <AppIcon name="person.crop.circle.fill" />
           </Pressable>
         </View>
       </View>
@@ -196,15 +238,32 @@ export default function RecipeListScreen() {
       </View>
 
       {tab === "public" && (
-        <View className="mx-4 mb-3 flex-row">
+        <View className="mx-4 mb-3 flex-row items-center gap-2">
+          <View className="h-12 flex-1 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3">
+            <AppIcon name="magnifyingglass" size={18} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Tarif, mutfak veya etiket ara"
+              placeholderTextColor="#8A9CA3"
+              className="ml-2 flex-1 text-sm text-hwhite"
+              accessibilityLabel="Tariflerde ara"
+              returnKeyType="search"
+            />
+          </View>
           <Pressable
             onPress={() => setFilterSheetOpen(true)}
-            className="flex-row items-center gap-1.5 self-start rounded-full border border-white/15 bg-white/5 px-3 py-1.5"
+            className="h-12 flex-row items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3"
+            accessibilityRole="button"
+            accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
           >
-            <Text className="text-xs text-hwhite">🔍 Filtrele</Text>
+            <AppIcon name="line.3.horizontal.decrease" size={18} />
+            <Text className="text-xs text-hwhite">Filtrele</Text>
             {filterCount > 0 && (
               <View className="rounded-full bg-saffron px-1.5">
-                <Text className="text-[10px] font-bold text-hwhite">{filterCount}</Text>
+                <Text className="text-[10px] font-bold text-hwhite">
+                  {filterCount}
+                </Text>
               </View>
             )}
           </Pressable>
@@ -253,16 +312,21 @@ export default function RecipeListScreen() {
         </>
       ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#C8833B" />
+          <ActivityIndicator color="#38A6B3" />
         </View>
       ) : showEmptyOfflineState ? (
         <View className="flex-1 items-center justify-center px-8">
           <Text style={{ fontSize: 40 }}>📶✕</Text>
-          <Text className="mt-4 text-center text-base font-medium text-hwhite">Bağlantı yok</Text>
+          <Text className="mt-4 text-center text-base font-medium text-hwhite">
+            Bağlantı yok
+          </Text>
           <Text className="mt-1 text-center text-sm text-hmuted">
             Tarifleri görmek için internete bağlanın.
           </Text>
-          <Pressable onPress={() => refetch()} className="mt-6 rounded-xl bg-saffron px-6 py-3">
+          <Pressable
+            onPress={() => refetch()}
+            className="mt-6 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+          >
             <Text className="font-medium text-hwhite">
               {isRefetching ? "Deneniyor…" : "Yeniden Dene"}
             </Text>
@@ -270,17 +334,24 @@ export default function RecipeListScreen() {
         </View>
       ) : isError && items.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-center text-sm text-hmuted">Tarifler yüklenemedi.</Text>
-          <Pressable onPress={() => refetch()} className="mt-4 rounded-xl bg-saffron px-6 py-3">
+          <Text className="text-center text-sm text-hmuted">
+            Tarifler yüklenemedi.
+          </Text>
+          <Pressable
+            onPress={() => refetch()}
+            className="mt-4 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
+          >
             <Text className="font-medium text-hwhite">Yeniden Dene</Text>
           </Pressable>
         </View>
       ) : filterCount > 0 && filteredItems.length === 0 ? (
         <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-center text-sm text-hmuted">Bu filtrelerle eşleşen tarif yok.</Text>
+          <Text className="text-center text-sm text-hmuted">
+            Bu filtrelerle eşleşen tarif yok.
+          </Text>
           <Pressable
             onPress={() => setFilters(EMPTY_RECIPE_FILTERS)}
-            className="mt-4 rounded-xl bg-saffron px-6 py-3"
+            className="mt-4 min-h-12 justify-center rounded-xl bg-teal px-6 py-3"
           >
             <Text className="font-medium text-hwhite">Filtreleri Temizle</Text>
           </Pressable>
@@ -289,14 +360,24 @@ export default function RecipeListScreen() {
         <FlatList
           data={filteredItems}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 96 }}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: insets.bottom + 96,
+          }}
           refreshing={refreshing}
           onRefresh={async () => {
             setRefreshing(true);
             await refetch();
             setRefreshing(false);
           }}
-          renderItem={({ item }) => <RecipeCard recipe={item} />}
+          renderItem={({ item }) => (
+            <RecipeCard
+              recipe={item}
+              availableCount={
+                coverage.data?.get(item.id)?.available_count ?? undefined
+              }
+            />
+          )}
         />
       )}
 
@@ -306,7 +387,9 @@ export default function RecipeListScreen() {
           durumu kendi içinde açıklıyor. */}
       <Pressable
         onPress={() => router.push("/import")}
-        className="absolute right-5 rounded-full bg-saffron px-5 py-3.5"
+        className="absolute right-5 min-h-12 justify-center rounded-xl bg-teal px-5 py-3.5"
+        accessibilityRole="button"
+        accessibilityLabel="Tarif ekle"
         style={{ bottom: insets.bottom + 20 }}
       >
         <Text className="font-medium text-hwhite">+ Tarif Ekle</Text>
@@ -344,9 +427,13 @@ function TabButton({
   return (
     <Pressable
       onPress={onPress}
-      className={`flex-1 items-center rounded-lg py-2 ${active ? "bg-saffron" : ""}`}
+      className={`min-h-11 flex-1 items-center justify-center rounded-lg px-2 py-2 ${active ? "bg-teal" : ""}`}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
     >
-      <Text className={`text-xs font-medium ${active ? "text-hwhite" : "text-hmuted"}`}>
+      <Text
+        className={`text-xs font-medium ${active ? "text-hwhite" : "text-hmuted"}`}
+      >
         {label}
       </Text>
     </Pressable>
@@ -368,9 +455,9 @@ function MyRecipesTab({
     return (
       <View className="flex-1 items-center justify-center px-8">
         <Text className="text-center text-sm text-hmuted">
-          Defterin çevrimdışı görüntülenemiyor — kendi tariflerin cihaz önbelleğinde
-          tutulmuyor (önbellek yalnızca Hasat'ın herkese açık tariflerini tutar).
-          Bağlanınca burada olacaklar.
+          Defterin çevrimdışı görüntülenemiyor — kendi tariflerin cihaz
+          önbelleğinde tutulmuyor (önbellek yalnızca Hasat'ın herkese açık
+          tariflerini tutar). Bağlanınca burada olacaklar.
         </Text>
       </View>
     );
@@ -378,7 +465,7 @@ function MyRecipesTab({
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#C8833B" />
+        <ActivityIndicator color="#38A6B3" />
       </View>
     );
   }
@@ -386,10 +473,12 @@ function MyRecipesTab({
     return (
       <View className="flex-1 items-center justify-center px-8">
         <Text style={{ fontSize: 36 }}>📓</Text>
-        <Text className="mt-3 text-center text-base font-medium text-hwhite">Defterin boş</Text>
+        <Text className="mt-3 text-center text-base font-medium text-hwhite">
+          Defterin boş
+        </Text>
         <Text className="mt-1.5 text-center text-sm text-hmuted">
-          Elindeki bir tarifin fotoğrafını çek ya da metnini yapıştır — buraya yalnızca
-          sana görünen bir tarif olarak eklensin.
+          Elindeki bir tarifin fotoğrafını çek ya da metnini yapıştır — buraya
+          yalnızca sana görünen bir tarif olarak eklensin.
         </Text>
       </View>
     );
@@ -401,25 +490,34 @@ function MyRecipesTab({
       contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 96 }}
       renderItem={({ item }) => {
         const minutes =
-          (item.prep_minutes ?? 0) + (item.cook_minutes ?? 0) + (item.rest_minutes ?? 0);
+          (item.prep_minutes ?? 0) +
+          (item.cook_minutes ?? 0) +
+          (item.rest_minutes ?? 0);
         const lowConfidence =
           item.extraction_confidence != null &&
           item.extraction_confidence < LOW_CONFIDENCE_THRESHOLD;
         return (
           <Pressable
             onPress={() =>
-              router.push({ pathname: "/recipe/[slug]", params: { slug: item.slug, own: "1" } })
+              router.push({
+                pathname: "/recipe/[slug]",
+                params: { slug: item.slug, own: "1" },
+              })
             }
             className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
           >
-            <Text className="text-base font-medium text-hwhite">{item.title}</Text>
+            <Text className="text-base font-medium text-hwhite">
+              {item.title}
+            </Text>
             <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
               <Text className="text-[11px] text-hmuted">
                 🔒 yalnızca sana görünür ·{" "}
                 {SOURCE_TYPE_LABELS[item.source_type] ?? item.source_type}
               </Text>
               {minutes > 0 && (
-                <Text className="text-[11px] text-hmuted">· 🕐 {formatTotalMinutes(minutes)}</Text>
+                <Text className="text-[11px] text-hmuted">
+                  · 🕐 {formatTotalMinutes(minutes)}
+                </Text>
               )}
             </View>
             {lowConfidence && (
@@ -461,7 +559,7 @@ function FavoritesTab({
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#C8833B" />
+        <ActivityIndicator color="#38A6B3" />
       </View>
     );
   }
@@ -473,7 +571,8 @@ function FavoritesTab({
           Henüz favorin yok
         </Text>
         <Text className="mt-1.5 text-center text-sm text-hmuted">
-          Hasat Tarifleri'nde beğendiğin bir tarifin kalp ikonuna dokun, buraya eklensin.
+          Hasat Tarifleri'nde beğendiğin bir tarifin kalp ikonuna dokun, buraya
+          eklensin.
         </Text>
       </View>
     );
@@ -485,22 +584,32 @@ function FavoritesTab({
       contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 96 }}
       renderItem={({ item }) => {
         const minutes =
-          (item.prep_minutes ?? 0) + (item.cook_minutes ?? 0) + (item.rest_minutes ?? 0);
+          (item.prep_minutes ?? 0) +
+          (item.cook_minutes ?? 0) +
+          (item.rest_minutes ?? 0);
         return (
           <Pressable
             onPress={() => router.push(`/recipe/${item.slug}`)}
             className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
           >
-            <Text className="text-base font-medium text-hwhite">{item.title}</Text>
+            <Text className="text-base font-medium text-hwhite">
+              {item.title}
+            </Text>
             <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
               {item.difficulty && (
                 <Text className="text-[11px] text-hmuted">
                   {DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
                 </Text>
               )}
-              {item.cuisine && <Text className="text-[11px] text-hmuted">· {item.cuisine}</Text>}
+              {item.cuisine && (
+                <Text className="text-[11px] text-hmuted">
+                  · {item.cuisine}
+                </Text>
+              )}
               {minutes > 0 && (
-                <Text className="text-[11px] text-hmuted">· 🕐 {formatTotalMinutes(minutes)}</Text>
+                <Text className="text-[11px] text-hmuted">
+                  · 🕐 {formatTotalMinutes(minutes)}
+                </Text>
               )}
             </View>
           </Pressable>
@@ -510,38 +619,59 @@ function FavoritesTab({
   );
 }
 
-function RecipeCard({ recipe }: { recipe: RecipeListItem }) {
+function RecipeCard({
+  recipe,
+  availableCount,
+}: {
+  recipe: RecipeListItem;
+  availableCount?: number;
+}) {
   const minutes = totalRecipeMinutes(recipe);
   return (
     <Pressable
       onPress={() => router.push(`/recipe/${recipe.slug}`)}
-      className="mb-3 flex-row overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+      className="mb-4 overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+      accessibilityRole="button"
+      accessibilityLabel={`${recipe.title}, ${formatTotalMinutes(minutes)}`}
     >
       <RepresentativePhoto
         src={recipe.displayPhotoUrl}
         isRepresentative={recipe.isRepresentativePhoto}
         alt={recipe.title}
-        style={{ width: 96, height: 96 }}
+        style={{ width: "100%", aspectRatio: 4 / 3 }}
       />
-      <View className="flex-1 justify-center px-3 py-2">
+      <View className="px-4 py-3">
         <Text className="text-base font-medium text-hwhite" numberOfLines={2}>
           {recipe.title}
         </Text>
         <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
           {minutes > 0 && (
-            <Text className="text-[11px] text-hmuted">🕐 {formatTotalMinutes(minutes)}</Text>
+            <Text className="text-[11px] text-hmuted">
+              🕐 {formatTotalMinutes(minutes)}
+            </Text>
           )}
           {recipe.difficulty && (
             <Text className="text-[11px] text-hmuted">
               · {DIFFICULTY_LABELS[recipe.difficulty] ?? recipe.difficulty}
             </Text>
           )}
-          {recipe.cuisine && <Text className="text-[11px] text-hmuted">· {recipe.cuisine}</Text>}
+          {recipe.cuisine && (
+            <Text className="text-[11px] text-hmuted">· {recipe.cuisine}</Text>
+          )}
         </View>
         {needsAdvanceStart(recipe) && (
           <View className="mt-1.5 flex-row items-center gap-1 self-start rounded-full bg-gold/25 px-2 py-0.5">
-            <Text className="text-[10px] font-medium text-dark">⏰ Önceden başlamak gerekir</Text>
+            <Text className="text-[10px] font-medium text-dark">
+              ⏰ Önceden başlamak gerekir
+            </Text>
           </View>
+        )}
+        {availableCount != null && (
+          <Text className="mt-2 text-[11px] text-teal-light">
+            {availableCount > 0
+              ? `${availableCount} malzeme için üretici seçeneği var`
+              : "Malzeme seçenekleri henüz eşleşmedi"}
+          </Text>
         )}
       </View>
     </Pressable>

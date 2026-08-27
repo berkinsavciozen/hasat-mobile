@@ -5,9 +5,9 @@ import { View, Text } from "react-native";
 
 export function OfflineBanner() {
   return (
-    <View className="bg-gold/25 px-4 py-2">
-      <Text className="text-center text-xs font-medium text-dark">
-        📶✕ Çevrimdışısınız · görünen tarifler önbellekten
+    <View className="bg-teal/20 px-4 py-2">
+      <Text className="text-center text-xs font-medium text-teal-light">
+        Çevrimdışısınız · görünen tarifler önbellekten
       </Text>
     </View>
   );

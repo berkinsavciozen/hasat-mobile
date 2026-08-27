@@ -26,10 +26,11 @@ export function activeFilterCount(f: RecipeFilters): number {
   return (f.duration ? 1 : 0) + (f.diet ? 1 : 0) + (f.onlyAvailable ? 1 : 0);
 }
 
-const DURATION_OPTIONS: { key: NonNullable<DurationBucket>; label: string }[] = [
-  { key: "30", label: "30 dk'dan az" },
-  { key: "60", label: "1 saate kadar" },
-];
+const DURATION_OPTIONS: { key: NonNullable<DurationBucket>; label: string }[] =
+  [
+    { key: "30", label: "30 dk'dan az" },
+    { key: "60", label: "1 saate kadar" },
+  ];
 
 export function RecipeFilterSheet({
   visible,
@@ -50,11 +51,25 @@ export function RecipeFilterSheet({
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingScreen style={{ justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingScreen
+        style={{
+          justifyContent: "flex-end",
+          backgroundColor: "rgba(0,0,0,0.5)",
+        }}
+      >
         <ScrollView
-          className="max-h-[85%] rounded-t-2xl bg-dark"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+          className="max-h-[85%] rounded-t-2xl bg-navy"
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: insets.bottom + 16,
+            paddingTop: 16,
+          }}
         >
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-base font-medium text-hwhite">Filtrele</Text>
@@ -63,7 +78,9 @@ export function RecipeFilterSheet({
             </Pressable>
           </View>
 
-          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">Süre</Text>
+          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+            Süre
+          </Text>
           <View className="mb-4 flex-row flex-wrap gap-2">
             <FilterChip
               label="Hepsi"
@@ -82,7 +99,9 @@ export function RecipeFilterSheet({
 
           {dietTags.length > 0 && (
             <>
-              <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">Diyet etiketi</Text>
+              <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+                Diyet etiketi
+              </Text>
               <View className="mb-4 flex-row flex-wrap gap-2">
                 <FilterChip
                   label="Hepsi"
@@ -101,17 +120,27 @@ export function RecipeFilterSheet({
             </>
           )}
 
-          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">Malzeme</Text>
+          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+            Malzeme
+          </Text>
           <Pressable
             disabled={!coverageAvailable}
-            onPress={() => onChange({ ...filters, onlyAvailable: !filters.onlyAvailable })}
-            className="mb-2 flex-row items-center justify-between rounded-xl border border-white/15 bg-white/5 px-3 py-2.5"
+            onPress={() =>
+              onChange({ ...filters, onlyAvailable: !filters.onlyAvailable })
+            }
+            className="mb-2 min-h-12 flex-row items-center justify-between rounded-xl border border-white/15 bg-white/5 px-3 py-2.5"
             style={{ opacity: coverageAvailable ? 1 : 0.4 }}
           >
-            <Text className="flex-1 text-sm text-hwhite">Malzemesi Hasat'ta olan tarifler</Text>
+            <Text className="flex-1 text-sm text-hwhite">
+              Malzemesi Hasat'ta olan tarifler
+            </Text>
             <View
               className="h-5 w-9 rounded-full p-0.5"
-              style={{ backgroundColor: filters.onlyAvailable ? "#C8833B" : "rgba(253,250,245,0.15)" }}
+              style={{
+                backgroundColor: filters.onlyAvailable
+                  ? "#C8833B"
+                  : "rgba(253,250,245,0.15)",
+              }}
             >
               <View
                 className="h-4 w-4 rounded-full bg-hwhite"
@@ -120,17 +149,22 @@ export function RecipeFilterSheet({
             </View>
           </Pressable>
           {!coverageAvailable && (
-            <Text className="mb-2 text-[11px] text-hmuted">Bu filtre çevrimdışıyken kullanılamaz.</Text>
+            <Text className="mb-2 text-[11px] text-hmuted">
+              Bu filtre çevrimdışıyken kullanılamaz.
+            </Text>
           )}
 
           <View className="mt-4 flex-row gap-2">
             <Pressable
               onPress={() => onChange(EMPTY_RECIPE_FILTERS)}
-              className="flex-1 items-center rounded-xl border border-white/15 py-3"
+              className="min-h-12 flex-1 items-center justify-center rounded-xl border border-white/15 py-3"
             >
               <Text className="text-sm font-medium text-hwhite">Temizle</Text>
             </Pressable>
-            <Pressable onPress={onClose} className="flex-1 items-center rounded-xl bg-saffron py-3">
+            <Pressable
+              onPress={onClose}
+              className="min-h-12 flex-1 items-center justify-center rounded-xl bg-teal py-3"
+            >
               <Text className="text-sm font-medium text-hwhite">Uygula</Text>
             </Pressable>
           </View>
@@ -140,17 +174,28 @@ export function RecipeFilterSheet({
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
-      className="rounded-full border px-3 py-1.5"
+      className="min-h-11 justify-center rounded-xl border px-3 py-1.5"
       style={{
-        borderColor: active ? "#C8833B" : "rgba(253,250,245,0.15)",
-        backgroundColor: active ? "rgba(200,131,59,0.25)" : "transparent",
+        borderColor: active ? "#167F8C" : "rgba(253,250,245,0.15)",
+        backgroundColor: active ? "rgba(22,127,140,0.25)" : "transparent",
       }}
     >
-      <Text className="text-xs" style={{ color: active ? "#C8833B" : "rgba(253,250,245,0.7)" }}>
+      <Text
+        className="text-xs"
+        style={{ color: active ? "#A9C7CF" : "rgba(253,250,245,0.7)" }}
+      >
         {label}
       </Text>
     </Pressable>

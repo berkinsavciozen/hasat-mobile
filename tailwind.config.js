@@ -64,6 +64,11 @@ module.exports = {
     extend: {
       colors: {
         ...brand,
+        navy: "#071E2C",
+        "navy-soft": "#0D2B3A",
+        teal: "#167F8C",
+        "teal-light": "#A9C7CF",
+        "surface-warm": "#F7F2E8",
         background: semanticLight.background,
         foreground: semanticLight.foreground,
         card: semanticLight.card,

@@ -1,12 +1,28 @@
 import { useCallback, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Image, Share } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Image,
+  Share,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { RepresentativePhoto, RepresentativeBadge } from "@/components/hasat/RepresentativePhoto";
+import {
+  RepresentativePhoto,
+  RepresentativeBadge,
+} from "@/components/hasat/RepresentativePhoto";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
+import { AppIcon } from "@/components/hasat/AppIcon";
 import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { useIsOffline } from "@/lib/net/useIsOffline";
-import { formatIngredientName, formatQuantity, formatTRY } from "@/lib/hasat/format";
+import {
+  formatIngredientName,
+  formatQuantity,
+  formatTRY,
+} from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
@@ -56,13 +72,20 @@ export default function RecipeDetailScreen() {
   // deterministik trigger import anında bağlıyor, kullanıcı önizlemede
   // düzeltebiliyor (bkz. app/import.tsx).
   useLogRecipeView(isOwn ? undefined : recipe?.id);
-  const { data: availability = [] } = useRecipeAvailability(isOwn ? undefined : recipe?.id);
+  const { data: availability = [] } = useRecipeAvailability(
+    isOwn ? undefined : recipe?.id,
+  );
   const { data: shoppingList = [] } = useRecipeShoppingList(
     isOwn ? undefined : recipe?.id,
     effectiveServings,
   );
-  const { availByIngredient, shopByIngredient } = useIngredientMaps(availability, shoppingList);
-  const matchedCrops = (data?.ingredients ?? []).filter((i) => i.crop).map((i) => i.crop as string);
+  const { availByIngredient, shopByIngredient } = useIngredientMaps(
+    availability,
+    shoppingList,
+  );
+  const matchedCrops = (data?.ingredients ?? [])
+    .filter((i) => i.crop)
+    .map((i) => i.crop as string);
   const { data: matchedListingIds } = useMatchedListingIds(matchedCrops);
 
   // P23-M8-d (T4) — bulgu S33 adım 18: aktif bir pişirme oturumu varken bu
@@ -91,7 +114,10 @@ export default function RecipeDetailScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-dark" style={{ paddingTop: insets.top }}>
+      <View
+        className="flex-1 items-center justify-center bg-dark"
+        style={{ paddingTop: insets.top }}
+      >
         <ActivityIndicator color="#C8833B" />
       </View>
     );
@@ -111,14 +137,20 @@ export default function RecipeDetailScreen() {
             : "Tarif bulunamadı."}
         </Text>
         <Pressable onPress={() => router.back()} className="mt-4">
-          <Text className="text-xs text-saffron underline">← Tariflere dön</Text>
+          <Text className="text-xs text-saffron underline">
+            ← Tariflere dön
+          </Text>
         </Pressable>
       </View>
     );
   }
 
   const { recipe: r, steps, ingredients, source } = data;
-  const timeBreakdown = formatTimeBreakdown(r.prep_minutes, r.cook_minutes, r.rest_minutes);
+  const timeBreakdown = formatTimeBreakdown(
+    r.prep_minutes,
+    r.cook_minutes,
+    r.rest_minutes,
+  );
 
   // Yalnızca public (Hasat) tarifler paylaşılabilir — Defterim'deki kişisel
   // taslaklar (own=1) henüz paylaşılabilir değil (share_token modeli v1.1,
@@ -146,7 +178,10 @@ export default function RecipeDetailScreen() {
   });
 
   return (
-    <ScrollView className="flex-1 bg-dark" contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+    <ScrollView
+      className="flex-1 bg-navy"
+      contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+    >
       {isOffline && source === "cache" && <OfflineBanner />}
 
       <View style={{ paddingTop: insets.top }}>
@@ -154,7 +189,7 @@ export default function RecipeDetailScreen() {
           src={r.displayPhotoUrl}
           isRepresentative={r.isRepresentativePhoto}
           alt={r.title}
-          style={{ width: "100%", height: 220 }}
+          style={{ width: "100%", aspectRatio: 4 / 3 }}
         />
       </View>
 
@@ -163,17 +198,22 @@ export default function RecipeDetailScreen() {
       {resumeStepIndex != null && (
         <Pressable
           onPress={() =>
-            router.push({ pathname: "/cook/[slug]", params: cookModeParams(resumeStepIndex) })
+            router.push({
+              pathname: "/cook/[slug]",
+              params: cookModeParams(resumeStepIndex),
+            })
           }
-          className="mx-5 mt-4 flex-row items-center justify-between rounded-2xl border border-saffron bg-saffron/15 px-4 py-3"
+          className="mx-5 mt-4 min-h-12 flex-row items-center justify-between rounded-2xl border border-teal bg-teal/15 px-4 py-3"
         >
           <View className="flex-1 pr-2">
-            <Text className="text-sm font-medium text-hwhite">👨‍🍳 Pişirmeye devam ediyorsun</Text>
+            <Text className="text-sm font-medium text-hwhite">
+              Pişirmeye devam ediyorsun
+            </Text>
             <Text className="mt-0.5 text-xs text-hmuted">
               Adım {resumeStepIndex + 1}/{steps.length}
             </Text>
           </View>
-          <Text className="text-sm font-medium text-saffron">Devam Et →</Text>
+          <Text className="text-sm font-medium text-teal-light">Devam Et</Text>
         </Pressable>
       )}
 
@@ -187,7 +227,9 @@ export default function RecipeDetailScreen() {
             // (app/import.tsx'in "review" aşaması) düzenleme modunda açıyor —
             // `recipeId` route param'ı ile (kural #106: yeni ekran yok).
             <Pressable
-              onPress={() => router.push({ pathname: "/import", params: { recipeId: r.id } })}
+              onPress={() =>
+                router.push({ pathname: "/import", params: { recipeId: r.id } })
+              }
               hitSlop={8}
               className="rounded-full border border-white/15 px-3 py-1"
             >
@@ -207,8 +249,12 @@ export default function RecipeDetailScreen() {
             </View>
           )}
         </View>
-        <Text className="mt-2 font-serif text-2xl font-bold text-hwhite">{r.title}</Text>
-        {r.description && <Text className="mt-2 text-sm text-hmuted">{r.description}</Text>}
+        <Text className="mt-2 font-serif text-2xl font-bold text-hwhite">
+          {r.title}
+        </Text>
+        {r.description && (
+          <Text className="mt-2 text-sm text-hmuted">{r.description}</Text>
+        )}
 
         <View className="mt-3 flex-row flex-wrap items-center gap-x-2 gap-y-1">
           {timeBreakdown ? (
@@ -219,19 +265,23 @@ export default function RecipeDetailScreen() {
               {DIFFICULTY_LABELS[r.difficulty] ?? r.difficulty}
             </Text>
           )}
-          {r.cuisine && <Text className="text-xs text-hmuted">{r.cuisine}</Text>}
+          {r.cuisine && (
+            <Text className="text-xs text-hmuted">{r.cuisine}</Text>
+          )}
         </View>
 
         {needsAdvanceStart(r) && (
           <View className="mt-2 flex-row items-center self-start rounded-full bg-gold/25 px-2.5 py-1">
-            <Text className="text-xs font-medium text-dark">⏰ Önceden başlamak gerekir</Text>
+            <Text className="text-xs font-medium text-dark">
+              ⏰ Önceden başlamak gerekir
+            </Text>
           </View>
         )}
 
         {r.diet_tags.length > 0 && (
           <View className="mt-2 flex-row flex-wrap gap-1">
             {r.diet_tags.map((d) => (
-              <View key={d} className="rounded-full bg-sage/25 px-2 py-0.5">
+              <View key={d} className="rounded-full bg-white/10 px-2 py-0.5">
                 <Text className="text-[10px] font-medium text-hwhite">{d}</Text>
               </View>
             ))}
@@ -241,11 +291,15 @@ export default function RecipeDetailScreen() {
 
       <View className="px-5">
         <View className="flex-row items-center justify-between">
-          <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">Malzemeler</Text>
+          <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">
+            Malzemeler
+          </Text>
           <View className="flex-row items-center gap-3">
             <Pressable
-              onPress={() => setServings((s) => Math.max(1, (s ?? r.servings ?? 4) - 1))}
-              className="h-7 w-7 items-center justify-center rounded-full border border-white/15"
+              onPress={() =>
+                setServings((s) => Math.max(1, (s ?? r.servings ?? 4) - 1))
+              }
+              className="h-11 w-11 items-center justify-center rounded-xl border border-white/15"
             >
               <Text className="text-hwhite">−</Text>
             </Pressable>
@@ -254,7 +308,7 @@ export default function RecipeDetailScreen() {
             </Text>
             <Pressable
               onPress={() => setServings((s) => (s ?? r.servings ?? 4) + 1)}
-              className="h-7 w-7 items-center justify-center rounded-full border border-white/15"
+              className="h-11 w-11 items-center justify-center rounded-xl border border-white/15"
             >
               <Text className="text-hwhite">+</Text>
             </Pressable>
@@ -269,7 +323,9 @@ export default function RecipeDetailScreen() {
               isOffline={isOffline}
               avail={availByIngredient.get(ing.id)}
               shop={shopByIngredient.get(ing.id)}
-              matchedListing={ing.crop ? matchedListingIds?.get(ing.crop) : undefined}
+              matchedListing={
+                ing.crop ? matchedListingIds?.get(ing.crop) : undefined
+              }
               recipeId={isOwn ? undefined : recipe?.id}
             />
           ))}
@@ -277,7 +333,9 @@ export default function RecipeDetailScreen() {
       </View>
 
       <View className="mt-6 px-5">
-        <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">Hazırlanışı</Text>
+        <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">
+          Hazırlanışı
+        </Text>
 
         {/* P23-M6 — Pişirme moduna giriş. Şartname (Visual-Spec → "1. Pişirme
             Modu" → "Adım listesi (giriş noktası)"): adımların özeti burada,
@@ -289,12 +347,15 @@ export default function RecipeDetailScreen() {
         {steps.length > 0 && (
           <Pressable
             onPress={() =>
-              router.push({ pathname: "/cook/[slug]", params: cookModeParams(resumeStepIndex) })
+              router.push({
+                pathname: "/cook/[slug]",
+                params: cookModeParams(resumeStepIndex),
+              })
             }
-            className="mt-3 items-center rounded-2xl bg-saffron py-4"
+            className="mt-3 min-h-12 items-center justify-center rounded-2xl bg-teal py-4"
           >
             <Text className="text-base font-medium text-hwhite">
-              {resumeStepIndex != null ? "▶ Devam Et" : "👨‍🍳 Pişirmeye Başla"}
+              {resumeStepIndex != null ? "Devam Et" : "Pişirmeye Başla"}
             </Text>
           </Pressable>
         )}
@@ -306,9 +367,14 @@ export default function RecipeDetailScreen() {
 
         <View className="mt-3">
           {steps.map((s) => (
-            <View key={s.id} className="mb-3 rounded-xl border border-white/10 bg-white/5 p-3">
+            <View
+              key={s.id}
+              className="mb-3 rounded-xl border border-white/10 bg-white/5 p-3"
+            >
               <View className="flex-row items-start gap-2">
-                <Text className="pt-0.5 font-mono text-xs text-hmuted">{s.step_no}.</Text>
+                <Text className="pt-0.5 font-mono text-xs text-hmuted">
+                  {s.step_no}.
+                </Text>
                 <View className="flex-1">
                   <Text className="text-sm text-hwhite">{s.instruction}</Text>
                   {s.photo_url && (
@@ -319,7 +385,9 @@ export default function RecipeDetailScreen() {
                     />
                   )}
                   {s.timer_seconds != null && (
-                    <Text className="mt-1 text-[11px] text-hmuted">⏱ {formatTimer(s.timer_seconds)}</Text>
+                    <Text className="mt-1 text-[11px] text-hmuted">
+                      ⏱ {formatTimer(s.timer_seconds)}
+                    </Text>
                   )}
                 </View>
               </View>
@@ -330,8 +398,9 @@ export default function RecipeDetailScreen() {
 
       <View className="mx-5 mt-4 rounded-xl border border-dashed border-white/15 p-3">
         <Text className="text-[11px] text-hmuted">
-          Hasat hızlı teslimat uygulaması değildir: teslim süresi ve minimum sipariş miktarı
-          çiftçiden doğrudan, mevsiminde ve güvenilir tedarik içindir — anında değil.
+          Hasat hızlı teslimat uygulaması değildir: teslim süresi ve minimum
+          sipariş miktarı çiftçiden doğrudan, mevsiminde ve güvenilir tedarik
+          içindir — anında değil.
         </Text>
       </View>
     </ScrollView>
@@ -349,9 +418,13 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
       onPress={() => toggle.mutate(!isSaved)}
       hitSlop={8}
       accessibilityLabel={isSaved ? "Favorilerden çıkar" : "Favorilere ekle"}
-      className="h-7 w-7 items-center justify-center rounded-full border border-white/15"
+      className="h-12 w-12 items-center justify-center rounded-xl border border-white/15"
+      accessibilityRole="button"
     >
-      <Text style={{ fontSize: 13 }}>{isSaved ? "❤️" : "🤍"}</Text>
+      <AppIcon
+        name={isSaved ? "heart.fill" : "heart"}
+        color={isSaved ? "#C0392B" : "#A9C7CF"}
+      />
     </Pressable>
   );
 }
@@ -372,7 +445,11 @@ function IngredientCard({
   recipeId?: string;
 }) {
   const [requestOpen, setRequestOpen] = useState(false);
-  const name = formatIngredientName(ingredient.crop, avail?.crop_display_name, ingredient.free_text_name);
+  const name = formatIngredientName(
+    ingredient.crop,
+    avail?.crop_display_name,
+    ingredient.free_text_name,
+  );
   const qtyLine = shop
     ? `${formatQuantity(shop.scaled_quantity ?? shop.recipe_quantity, shop.recipe_unit)} ${shop.recipe_unit ?? ""}`.trim()
     : `${formatQuantity(ingredient.quantity, ingredient.unit)} ${ingredient.unit ?? ""}`.trim();
@@ -383,7 +460,9 @@ function IngredientCard({
   //   2. eşleşti + aktif ilan yok  -> "Talep Et" (ürün adı kilitli = crop)
   //   3. tarımsal ama eşleşmedi    -> "Talep Et" (serbest metin, sınıf tarımsal)
   //   4. platform-dışı             -> "Talep Et" de var (Berkin kararı, sinyal korunuyor)
-  const requestClass = ingredient.crop ? "tarimsal" : (ingredient.ingredient_class ?? "platform_disi");
+  const requestClass = ingredient.crop
+    ? "tarimsal"
+    : (ingredient.ingredient_class ?? "platform_disi");
   const requestName = ingredient.crop ?? ingredient.free_text_name ?? "";
 
   return (
@@ -414,7 +493,9 @@ function IngredientCard({
             {name}
           </Text>
           {ingredient.is_key_ingredient && (
-            <Text className="text-[9px] uppercase tracking-wide text-hmuted">ana malzeme</Text>
+            <Text className="text-[9px] uppercase tracking-wide text-hmuted">
+              ana malzeme
+            </Text>
           )}
         </View>
         <Text className="text-xs text-hmuted">
@@ -429,25 +510,43 @@ function IngredientCard({
         ) : isMatched ? (
           <View className="mt-1">
             <Text className="text-[11px] text-hmuted">
-              {shop?.best_price_per_canonical != null && shop?.canonical_unit && (
+              {shop?.best_price_per_canonical != null &&
+                shop?.canonical_unit && (
+                  <>
+                    {formatTRY(shop.best_price_per_canonical)}/
+                    {shop.canonical_unit}
+                  </>
+                )}
+              {shop?.min_order_canonical != null && shop?.canonical_unit && (
                 <>
-                  {formatTRY(shop.best_price_per_canonical)}/{shop.canonical_unit}
+                  {" "}
+                  · Min. sipariş{" "}
+                  {formatQuantity(
+                    shop.min_order_canonical,
+                    shop.canonical_unit,
+                  )}{" "}
+                  {shop.canonical_unit}
                 </>
               )}
-              {shop?.min_order_canonical != null && shop?.canonical_unit && (
-                <> · Min. sipariş {formatQuantity(shop.min_order_canonical, shop.canonical_unit)} {shop.canonical_unit}</>
+              {avail && avail.active_listing_count > 0 && (
+                <> · {avail.active_listing_count} aktif ilan</>
               )}
-              {avail && avail.active_listing_count > 0 && <> · {avail.active_listing_count} aktif ilan</>}
             </Text>
             {shop?.rounded_up_to_min_order && shop.canonical_unit && (
               <Text className="text-[11px] text-hmuted">
-                Bu tarif için {formatQuantity(shop.needed_canonical, shop.canonical_unit)} {shop.canonical_unit} yeterli, ama minimum
-                sipariş {formatQuantity(shop.purchase_canonical, shop.canonical_unit)} {shop.canonical_unit}
-                {shop.recipes_covered != null && ` — bu miktar ~${Math.round(shop.recipes_covered)} tarif yapar.`}
+                Bu tarif için{" "}
+                {formatQuantity(shop.needed_canonical, shop.canonical_unit)}{" "}
+                {shop.canonical_unit} yeterli, ama minimum sipariş{" "}
+                {formatQuantity(shop.purchase_canonical, shop.canonical_unit)}{" "}
+                {shop.canonical_unit}
+                {shop.recipes_covered != null &&
+                  ` — bu miktar ~${Math.round(shop.recipes_covered)} tarif yapar.`}
               </Text>
             )}
             {shop?.estimated_cost != null && (
-              <Text className="text-[11px] text-hmuted">Tahmini maliyet: {formatTRY(shop.estimated_cost)}</Text>
+              <Text className="text-[11px] text-hmuted">
+                Tahmini maliyet: {formatTRY(shop.estimated_cost)}
+              </Text>
             )}
             {matchedListing && (
               <Pressable
@@ -455,22 +554,32 @@ function IngredientCard({
                   router.push({
                     pathname: "/product/[farmerId]/[crop]",
                     params: recipeId
-                      ? { farmerId: matchedListing.farmerId, crop: ingredient.crop!, recipeId }
-                      : { farmerId: matchedListing.farmerId, crop: ingredient.crop! },
+                      ? {
+                          farmerId: matchedListing.farmerId,
+                          crop: ingredient.crop!,
+                          recipeId,
+                        }
+                      : {
+                          farmerId: matchedListing.farmerId,
+                          crop: ingredient.crop!,
+                        },
                   })
                 }
                 hitSlop={8}
-                className="mt-1.5 self-start rounded-full px-3 py-1.5"
-                style={{ backgroundColor: "#C8833B" }}
+                className="mt-1.5 min-h-11 self-start justify-center rounded-xl bg-teal px-3 py-1.5"
               >
-                <Text className="text-xs font-semibold text-hwhite">Sipariş Ver →</Text>
+                <Text className="text-xs font-semibold text-hwhite">
+                  Üretici Seçenekleri
+                </Text>
               </Pressable>
             )}
           </View>
         ) : (
           <View className="mt-1.5 flex-row flex-wrap items-center gap-1.5">
             <View className="self-start rounded-full bg-hmuted/20 px-2 py-0.5">
-              <Text className="text-[10px] font-medium text-hmuted">Hasat'ta henüz yok</Text>
+              <Text className="text-[10px] font-medium text-hmuted">
+                Hasat'ta henüz yok
+              </Text>
             </View>
             {requestName && (
               <Pressable
@@ -479,7 +588,9 @@ function IngredientCard({
                 className="rounded-full px-3 py-1.5"
                 style={{ backgroundColor: "#C8833B" }}
               >
-                <Text className="text-xs font-semibold text-hwhite">Talep Et →</Text>
+                <Text className="text-xs font-semibold text-hwhite">
+                  Talep Et →
+                </Text>
               </Pressable>
             )}
           </View>
@@ -492,7 +603,9 @@ function IngredientCard({
           onClose={() => setRequestOpen(false)}
           lockCropName={!!ingredient.crop}
           initialCropName={requestName}
-          initialQuantity={shop?.purchase_canonical ?? ingredient.quantity ?? null}
+          initialQuantity={
+            shop?.purchase_canonical ?? ingredient.quantity ?? null
+          }
           initialUnit={shop?.canonical_unit ?? ingredient.unit ?? null}
           ingredientClass={requestClass}
           recipeId={recipeId}
