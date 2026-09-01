@@ -10,7 +10,7 @@
 // M5-b'nin `expo-sqlite` önbelleğinden geliyor. Timer tamamen yerel (DB/ağ
 // gerektirmiyor), keep-awake ve bildirim de yerel. Yani pişirme modu uçak
 // modunda eksiksiz çalışır (şartname → "2. Offline Durumu" kapsam tablosu:
-// "Pişirme modu (önbellekteki bir tarifte) ✅ tamamen").
+// "Pişirme modu (önbellekteki bir tarifte) tamamen").
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
@@ -48,7 +48,7 @@ export default function CookModeScreen() {
   const { data, isLoading } = useRecipeDetail(slug, { own: own === "1" });
 
   // Ekranı uyanık tutma — YALNIZCA bu ekran mount'tayken. `useKeepAwake`
-  // unmount'ta otomatik bırakıyor, yani ✕ ile çıkışta / geri gidişte ekran
+  // unmount'ta otomatik bırakıyor, yani kapatınca / geri gidişte ekran
   // normal davranışına döner (görev metni: "çıkışta bırakılmalı, yoksa pil
   // tüketir"). Şartname keep-awake'i "timer başlayınca" tetikliyordu; burada
   // pişirme modunun tamamı kapsandı — görev metni bu turda kapsamı böyle
@@ -82,7 +82,7 @@ export default function CookModeScreen() {
 
   // Konumu hatırla — timer kurulmasa bile (S33 adım 18: aktif bir timer
   // olmadan da hangi adımda kalındığını bulmak zordu). "Bitir"e kadar
-  // silinmiyor (aşağıdaki Bitir handler'ına bkz.) — ✕ ile çıkışta korunuyor,
+  // silinmiyor (aşağıdaki Bitir handler'ına bkz.) — kapatınca korunuyor,
   // "Devam Et" tam olarak bu senaryo için var.
   useEffect(() => {
     if (!recipe?.id || steps.length === 0) return;
@@ -137,8 +137,14 @@ export default function CookModeScreen() {
         <Text className="text-center text-sm text-hmuted">
           Bu tarifin adımları görüntülenemedi.
         </Text>
-        <Pressable onPress={() => router.back()} className="mt-4">
-          <Text className="text-xs text-saffron underline">← Tarife dön</Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-4 min-h-12 flex-row items-center justify-center gap-2 px-4"
+          accessibilityRole="button"
+          accessibilityLabel="Tarife dön"
+        >
+          <AppIcon name="previous" color="#C8833B" />
+          <Text className="text-xs text-saffron underline">Tarife dön</Text>
         </Pressable>
       </View>
     );
@@ -222,17 +228,23 @@ export default function CookModeScreen() {
               {formatCountdown(timer.remainingMs)}
             </Text>
             {timer.finished && (
-              <Text className="mt-2 text-sm font-medium text-gold">
-                ⏰ Süre doldu
-              </Text>
+              <View className="mt-2 flex-row items-center gap-2">
+                <AppIcon name="warning" color="#D4A843" />
+                <Text className="text-sm font-medium text-gold">
+                  Süre doldu
+                </Text>
+              </View>
             )}
-            <View className="mt-4 flex-row items-center gap-3">
+            <View className="mt-4 flex-row flex-wrap items-center justify-center gap-3">
               {timer.running ? (
                 <Pressable
                   onPress={() => void timer.pause()}
-                  className="min-h-12 justify-center rounded-xl border border-white/20 px-5 py-3"
+                  className="min-h-12 flex-row items-center justify-center gap-2 rounded-xl border border-white/20 px-5 py-3"
+                  accessibilityRole="button"
+                  accessibilityLabel="Zamanlayıcıyı durdur"
                 >
-                  <Text className="font-medium text-hwhite">⏸ Durdur</Text>
+                  <AppIcon name="pause" color="#FDFAF5" />
+                  <Text className="font-medium text-hwhite">Durdur</Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -240,21 +252,32 @@ export default function CookModeScreen() {
                     timer.acknowledgeFinish();
                     void timer.start();
                   }}
-                  className="min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
+                  className="min-h-12 flex-row items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3"
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    timer.remainingMs > 0 &&
+                    timer.remainingMs < (step.timer_seconds ?? 0) * 1000
+                      ? "Zamanlayıcıya devam et"
+                      : "Zamanlayıcıyı başlat"
+                  }
                 >
+                  <AppIcon name="play" color="#FDFAF5" />
                   <Text className="font-medium text-hwhite">
                     {timer.remainingMs > 0 &&
                     timer.remainingMs < (step.timer_seconds ?? 0) * 1000
-                      ? "▶ Devam et"
-                      : "▶ Başlat"}
+                      ? "Devam et"
+                      : "Başlat"}
                   </Text>
                 </Pressable>
               )}
               <Pressable
                 onPress={() => void timer.reset()}
-                className="min-h-12 justify-center rounded-xl border border-white/20 px-5 py-3"
+                className="min-h-12 flex-row items-center justify-center gap-2 rounded-xl border border-white/20 px-5 py-3"
+                accessibilityRole="button"
+                accessibilityLabel="Zamanlayıcıyı sıfırla"
               >
-                <Text className="font-medium text-hwhite">↺ Sıfırla</Text>
+                <AppIcon name="reset" color="#FDFAF5" />
+                <Text className="font-medium text-hwhite">Sıfırla</Text>
               </Pressable>
             </View>
             <Text className="mt-3 text-center text-[11px] text-hmuted">
@@ -283,7 +306,9 @@ export default function CookModeScreen() {
                   permissionResolver.current?.(false);
                   permissionResolver.current = null;
                 }}
-                className="rounded-xl border border-white/20 px-4 py-2.5"
+                className="min-h-12 justify-center rounded-xl border border-white/20 px-4 py-2.5"
+                accessibilityRole="button"
+                accessibilityLabel="Bildirim iznini şimdi sorma"
               >
                 <Text className="text-sm text-hwhite">Şimdi değil</Text>
               </Pressable>
@@ -295,6 +320,8 @@ export default function CookModeScreen() {
                   permissionResolver.current = null;
                 }}
                 className="min-h-12 justify-center rounded-xl bg-primary px-4 py-2.5"
+                accessibilityRole="button"
+                accessibilityLabel="Bildirim izni ver"
               >
                 <Text className="text-sm font-medium text-hwhite">
                   İzin ver
@@ -315,8 +342,14 @@ export default function CookModeScreen() {
           onPress={() => setIndex((i) => Math.max(0, i - 1))}
           className="min-h-12 flex-1 items-center justify-center rounded-2xl border border-white/20 py-4"
           style={{ opacity: index === 0 ? 0.35 : 1 }}
+          accessibilityRole="button"
+          accessibilityLabel="Önceki pişirme adımı"
+          accessibilityState={{ disabled: index === 0 }}
         >
-          <Text className="text-base font-medium text-hwhite">← Önceki</Text>
+          <View className="flex-row items-center gap-2">
+            <AppIcon name="previous" color="#FDFAF5" />
+            <Text className="text-base font-medium text-hwhite">Önceki</Text>
+          </View>
         </Pressable>
         <Pressable
           onPress={() => {
@@ -329,10 +362,17 @@ export default function CookModeScreen() {
             }
           }}
           className={`min-h-12 flex-1 items-center justify-center rounded-2xl py-4 ${isLast ? "bg-success" : "bg-primary"}`}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isLast ? "Pişirme modunu bitir" : "Sonraki pişirme adımı"
+          }
         >
-          <Text className="text-base font-medium text-hwhite">
-            {isLast ? "Bitir ✓" : "Sonraki →"}
-          </Text>
+          <View className="flex-row items-center gap-2">
+            <Text className="text-base font-medium text-hwhite">
+              {isLast ? "Bitir" : "Sonraki"}
+            </Text>
+            <AppIcon name={isLast ? "success" : "next"} color="#FDFAF5" />
+          </View>
         </Pressable>
       </View>
     </View>

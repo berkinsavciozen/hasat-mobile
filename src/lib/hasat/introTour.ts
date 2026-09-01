@@ -8,9 +8,10 @@
 // notu: mobilde çiftçiye özel ekran yok, yeni kayıtlar hep buyer). Bu
 // adımlar SADECE gerçekte var olan buyer yüzeylerini anlatıyor.
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { AppIconName } from "@/components/hasat/AppIcon";
 
 export type IntroTourStep = {
-  emoji: string;
+  icon: AppIconName;
   title: string;
   body: string;
 };
@@ -19,24 +20,24 @@ export const INTRO_TOUR_STORAGE_KEY = "hasat_mobile_intro_done";
 
 export const INTRO_TOUR_STEPS: IntroTourStep[] = [
   {
-    emoji: "📖",
+    icon: "notebook",
     title: "Tarifler",
     body: "Hasat'ın editoryal tarif kütüphanesi burada. Her tarifte, malzemenin Hasat'ta satılıp satılmadığını görürsün.",
   },
   {
-    emoji: "🤝",
+    icon: "leaf",
     title: "Talep Et / Teklif Ver",
     body: "Bir tarifteki malzemeyi beğendin mi? Doğrudan üreticiye talep gönder, teklif ver — aracı yok.",
   },
   {
-    emoji: "📦",
+    icon: "orders",
     title: "Siparişlerin",
-    body: "Talep ettiğin ürünlerin durumunu üstteki 📦 simgesinden, \"Siparişlerim\" ekranında her an takip edebilirsin.",
+    body: 'Talep ettiğin ürünlerin durumunu üstteki Siparişler simgesinden, "Siparişlerim" ekranında her an takip edebilirsin.',
   },
   {
-    emoji: "🔔",
+    icon: "bell",
     title: "Bildirimler",
-    body: "Teklifin yanıtlandığında, ürün geldiğinde ya da pişirme süren dolduğunda 🔔 zil simgesinden haberin olur.",
+    body: "Teklifin yanıtlandığında, ürün geldiğinde ya da pişirme süren dolduğunda Bildirimler simgesinden haberin olur.",
   },
 ];
 

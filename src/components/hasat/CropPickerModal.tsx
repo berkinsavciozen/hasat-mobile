@@ -98,7 +98,7 @@ export function CropPickerModal({
           {currentCrop && (
             <Pressable
               onPress={() => onSelect(null)}
-              className="mb-3 items-center rounded-xl border border-white/15 py-2.5"
+              className="mb-3 min-h-12 items-center justify-center rounded-xl border border-white/15 py-2.5"
               accessibilityRole="button"
             >
               <Text className="text-sm text-hmuted">Eşleşmeyi kaldır</Text>
@@ -140,7 +140,7 @@ export function CropPickerModal({
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => onSelect(item.crop)}
-                  className="flex-row items-center justify-between border-b border-white/5 py-3"
+                  className="min-h-12 flex-row items-center justify-between border-b border-white/5 py-3"
                   accessibilityRole="button"
                   accessibilityState={{ selected: item.crop === currentCrop }}
                 >
@@ -148,7 +148,7 @@ export function CropPickerModal({
                     {item.displayName}
                   </Text>
                   {item.crop === currentCrop && (
-                    <AppIcon name="success" color="#C8833B" />
+                    <AppIcon name="success" color="#0D3B66" />
                   )}
                 </Pressable>
               )}

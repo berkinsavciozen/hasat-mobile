@@ -5,10 +5,18 @@
 // web turunun overlay'ine tıklamak gibi). Adımların içeriği görülme
 // durumunu DEĞİŞTİRMEZ — kalıcılık (`hasSeenIntroTour`/`markIntroTourSeen`)
 // çağıran ekranın sorumluluğunda (bkz. app/home.tsx).
-import { useState } from "react";
-import { Modal, View, Text, Pressable } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
+  findNodeHandle,
+  Modal,
+  View,
+  Text,
+  Pressable,
+} from "react-native";
 import { INTRO_TOUR_STEPS } from "@/lib/hasat/introTour";
 import { useReducedMotion } from "@/lib/native/useReducedMotion";
+import { AppIcon } from "@/components/hasat/AppIcon";
 
 export function IntroTourModal({
   visible,
@@ -18,6 +26,7 @@ export function IntroTourModal({
   onFinish: () => void;
 }) {
   const [idx, setIdx] = useState(0);
+  const titleRef = useRef<Text>(null);
   const reduceMotion = useReducedMotion();
   const step = INTRO_TOUR_STEPS[idx];
   const isLast = idx === INTRO_TOUR_STEPS.length - 1;
@@ -26,6 +35,15 @@ export function IntroTourModal({
     setIdx(0);
     onFinish();
   };
+
+  useEffect(() => {
+    if (!visible) return;
+    const frame = requestAnimationFrame(() => {
+      const titleNode = findNodeHandle(titleRef.current);
+      if (titleNode != null) AccessibilityInfo.setAccessibilityFocus(titleNode);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [visible, idx]);
 
   if (!step) return null;
 
@@ -37,25 +55,40 @@ export function IntroTourModal({
       onRequestClose={close}
       accessibilityViewIsModal
     >
-      <Pressable
-        onPress={close}
+      <View
         className="flex-1 items-center justify-center px-6"
         style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+        accessible={false}
       >
-        {/* İçerideki Pressable, dokunuşu burada durdurup dış overlay'in
-            `close`'unu tetiklememesini sağlıyor (RN'de responder içteki
-            Pressable'a geçtiği için ayrıca stopPropagation gerekmiyor). */}
         <Pressable
-          onPress={() => {}}
+          onPress={close}
+          style={{ position: "absolute", inset: 0 }}
+          accessible={false}
+          importantForAccessibility="no"
+        />
+        {/* Layout container is deliberately non-accessible so VoiceOver reads
+            the heading, body, progress, and actions as separate elements. */}
+        <View
           className="w-full max-w-sm rounded-2xl border border-white/10 bg-dark p-5"
+          accessible={false}
+          accessibilityViewIsModal
         >
-          <Text style={{ fontSize: 40 }}>{step.emoji}</Text>
-          <Text className="mt-3 font-serif text-xl text-hwhite">
+          <AppIcon name={step.icon} size={40} color="#1F6E82" />
+          <Text
+            ref={titleRef}
+            className="mt-3 font-serif text-xl text-hwhite"
+            accessibilityRole="header"
+          >
             {step.title}
           </Text>
           <Text className="mt-2 text-sm text-hmuted">{step.body}</Text>
 
-          <View className="mt-5 flex-row justify-center gap-1.5">
+          <View
+            className="mt-5 flex-row justify-center gap-1.5"
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={`${INTRO_TOUR_STEPS.length} adımdan ${idx + 1}. adım`}
+          >
             {INTRO_TOUR_STEPS.map((_, i) => (
               <View
                 key={i}
@@ -90,8 +123,8 @@ export function IntroTourModal({
               </Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

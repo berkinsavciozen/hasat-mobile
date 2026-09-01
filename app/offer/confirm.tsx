@@ -17,7 +17,7 @@ export default function OfferConfirmScreen() {
       className="flex-1 items-center justify-center bg-dark px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
-      <AppIcon name="success" size={56} color="#1F6E82" />
+      <AppIcon name="success" size={56} color="#6B8F5E" />
       <Text className="mt-4 text-center font-serif text-2xl text-hwhite">
         Teklif Gönderildi
       </Text>

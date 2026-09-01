@@ -232,7 +232,7 @@ export function CropRequestSheet({
                   create.isPending || (!lockCropName && !cropName.trim())
                 }
                 onPress={() => void submit()}
-                className="items-center rounded-xl bg-saffron py-3.5"
+                className="min-h-12 items-center justify-center rounded-xl bg-saffron py-3.5"
                 style={{ opacity: create.isPending ? 0.6 : 1 }}
                 accessibilityRole="button"
                 accessibilityState={{

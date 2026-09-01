@@ -130,7 +130,7 @@ export function DeleteAccountModal({
           <Pressable
             disabled={!canConfirm || deleteAccount.isPending}
             onPress={() => void onConfirm()}
-            className="mt-4 items-center rounded-xl bg-hred py-3.5"
+            className="mt-4 min-h-12 items-center justify-center rounded-xl bg-hred py-3.5"
             style={{
               opacity: !canConfirm || deleteAccount.isPending ? 0.5 : 1,
             }}
