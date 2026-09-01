@@ -16,7 +16,11 @@ export type IntroTourStep = {
   body: string;
 };
 
-export const INTRO_TOUR_STORAGE_KEY = "hasat_mobile_intro_done";
+export const INTRO_TOUR_STORAGE_KEY_PREFIX = "hasat_mobile_intro_done";
+
+export function introTourStorageKey(userId: string): string {
+  return `${INTRO_TOUR_STORAGE_KEY_PREFIX}:${userId}`;
+}
 
 export const INTRO_TOUR_STEPS: IntroTourStep[] = [
   {
@@ -41,9 +45,9 @@ export const INTRO_TOUR_STEPS: IntroTourStep[] = [
   },
 ];
 
-export async function hasSeenIntroTour(): Promise<boolean> {
+export async function hasSeenIntroTour(userId: string): Promise<boolean> {
   try {
-    return (await AsyncStorage.getItem(INTRO_TOUR_STORAGE_KEY)) === "1";
+    return (await AsyncStorage.getItem(introTourStorageKey(userId))) === "1";
   } catch {
     // Bayrak okunamazsa turu tekrar göstermek, hiç göstermemekten daha
     // güvenli bir varsayılan (kalıcılık kritik bir veri değil, best-effort).
@@ -51,9 +55,9 @@ export async function hasSeenIntroTour(): Promise<boolean> {
   }
 }
 
-export async function markIntroTourSeen(): Promise<void> {
+export async function markIntroTourSeen(userId: string): Promise<void> {
   try {
-    await AsyncStorage.setItem(INTRO_TOUR_STORAGE_KEY, "1");
+    await AsyncStorage.setItem(introTourStorageKey(userId), "1");
   } catch (e) {
     console.warn("[introTour] bayrak yazılamadı", e);
   }

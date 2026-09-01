@@ -56,6 +56,7 @@ export const APP_ICON_MAP = {
   notebook: { ios: "book.closed.fill", android: "menu_book", web: "menu_book" },
   offline: { ios: "wifi.slash", android: "wifi_off", web: "wifi_off" },
   lock: { ios: "lock.fill", android: "lock", web: "lock" },
+  add: { ios: "plus", android: "add", web: "add" },
   pause: { ios: "pause.fill", android: "pause", web: "pause" },
   play: { ios: "play.fill", android: "play_arrow", web: "play_arrow" },
   reset: {

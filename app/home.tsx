@@ -4,8 +4,10 @@ import {
   Text,
   Pressable,
   FlatList,
+  ScrollView,
   ActivityIndicator,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -49,6 +51,8 @@ import {
 } from "@/components/hasat/RecipeFilterSheet";
 import { useUnreadCount } from "@/lib/hasat/notifications";
 import { AppIcon } from "@/components/hasat/AppIcon";
+import { supabase } from "@/lib/supabase/client";
+import { getHomeResponsiveLayout } from "@/lib/native/homeLayout";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -72,6 +76,8 @@ type Tab = "public" | "mine";
 
 export default function RecipeListScreen() {
   const insets = useSafeAreaInsets();
+  const { width, height, fontScale } = useWindowDimensions();
+  const responsive = getHomeResponsiveLayout(width, fontScale);
   const isOffline = useIsOffline();
   const [tab, setTab] = useState<Tab>("public");
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
@@ -98,15 +104,26 @@ export default function RecipeListScreen() {
   // ── İlk-kullanım tanıtım turu ────────────────────────────────────────────
   // `/home`'un ilk mount'una bağlandı (yalnızca `onboarding.tsx`'in
   // `finish()`'ine değil): yeni kayıtları da, tur eklenmeden önce zaten
-  // profili olan mevcut kullanıcıları da tek bir yerden kapsar. Bayrak
-  // cihaz-genel (AsyncStorage) — `push.ts`'teki `LAST_TOKEN_KEY` deseniyle
-  // aynı basit mekanizma (kural #106: yeni bir kalıcılık yolu icat etme).
+  // profili olan mevcut kullanıcıları da tek bir yerden kapsar. Bayrak,
+  // persist edilmiş Supabase oturumundaki kullanıcı ID'sine göre ayrılır;
+  // aynı cihazdaki farklı hesaplar birbirinin tur durumunu miras almaz.
   const [introVisible, setIntroVisible] = useState(false);
+  const [introUserId, setIntroUserId] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const seen = await hasSeenIntroTour();
-      if (!cancelled && !seen) setIntroVisible(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled || !session?.user.id) return;
+        const userId = session.user.id;
+        setIntroUserId(userId);
+        const seen = await hasSeenIntroTour(userId);
+        if (!cancelled && !seen) setIntroVisible(true);
+      } catch (error) {
+        console.warn("[introTour] oturum okunamadı", error);
+      }
     })();
     return () => {
       cancelled = true;
@@ -182,100 +199,123 @@ export default function RecipeListScreen() {
 
   return (
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center justify-between px-6 pb-3 pt-2">
-        <View className="flex-1">
-          <Text className="font-serif text-2xl font-bold text-hwhite">
-            Tarifler
-          </Text>
-          <Text className="text-xs text-hmuted">
-            Mevsiminde, çiftçiden doğrudan malzemeyle pişirin.
-          </Text>
-        </View>
-        <View className="flex-row items-center gap-1">
-          <Pressable
-            onPress={() => router.push("/notifications")}
-            className="h-12 w-12 items-center justify-center rounded-xl"
-            accessibilityRole="button"
-            accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
+      <ScrollView
+        scrollEnabled={responsive.stackHeader}
+        showsVerticalScrollIndicator={responsive.stackHeader}
+        style={
+          responsive.stackHeader
+            ? { flexGrow: 0, maxHeight: Math.max(240, height * 0.55) }
+            : { flexGrow: 0 }
+        }
+      >
+        <View
+          className={`px-6 pb-3 pt-2 ${responsive.stackHeader ? "gap-2" : "flex-row items-center justify-between"}`}
+        >
+          <View className={responsive.stackHeader ? "w-full" : "flex-1 pr-2"}>
+            <Text className="font-serif text-2xl font-bold text-hwhite">
+              Tarifler
+            </Text>
+            <Text className="text-xs text-hmuted">
+              Mevsiminde, çiftçiden doğrudan malzemeyle pişirin.
+            </Text>
+          </View>
+          <View
+            className={`flex-row items-center gap-1 ${responsive.stackHeader ? "self-end" : ""}`}
           >
-            <View>
-              <AppIcon name="bell" />
-              {unreadCount > 0 && (
-                <View
-                  className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
-                  style={{ backgroundColor: "#C8833B" }}
-                >
-                  <Text className="text-[9px] font-bold text-hwhite">
-                    {unreadCount > 9 ? "9+" : unreadCount}
+            <Pressable
+              onPress={() => router.push("/notifications")}
+              className="h-12 w-12 items-center justify-center rounded-xl"
+              accessibilityRole="button"
+              accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
+            >
+              <View>
+                <AppIcon name="bell" />
+                {unreadCount > 0 && (
+                  <View
+                    className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
+                    style={{ backgroundColor: "#C8833B" }}
+                  >
+                    <Text className="text-[9px] font-bold text-hwhite">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/orders")}
+              className="h-12 w-12 items-center justify-center rounded-xl"
+              accessibilityRole="button"
+              accessibilityLabel="Siparişler"
+            >
+              <AppIcon name="orders" />
+            </Pressable>
+            <Pressable
+              onPress={() => router.push("/profile")}
+              className="h-12 w-12 items-center justify-center rounded-xl"
+              accessibilityRole="button"
+              accessibilityLabel="Profil"
+            >
+              <AppIcon name="profile" />
+            </Pressable>
+          </View>
+        </View>
+
+        <View
+          className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
+        >
+          <TabButton
+            label="Hasat Tarifleri"
+            active={tab === "public"}
+            onPress={() => setTab("public")}
+            stacked={responsive.stackTabs}
+          />
+          <TabButton
+            label={`Defterim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
+            active={tab === "mine"}
+            onPress={() => setTab("mine")}
+            stacked={responsive.stackTabs}
+          />
+        </View>
+
+        {tab === "public" && (
+          <View
+            className={`mx-4 mb-3 gap-2 ${responsive.stackSearch ? "" : "flex-row items-center"}`}
+          >
+            <View
+              className={`min-h-12 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : "flex-1"}`}
+            >
+              <AppIcon name="search" size={18} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Tarif, mutfak veya etiket ara"
+                placeholderTextColor="#8A9CA3"
+                className="ml-2 flex-1 text-sm text-hwhite"
+                accessibilityLabel="Tariflerde ara"
+                returnKeyType="search"
+                multiline={responsive.stackSearch}
+              />
+            </View>
+            <Pressable
+              onPress={() => setFilterSheetOpen(true)}
+              className={`min-h-12 flex-row items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : ""}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
+            >
+              <AppIcon name="filter" size={18} />
+              <Text className="text-xs text-hwhite">Filtrele</Text>
+              {filterCount > 0 && (
+                <View className="rounded-full bg-saffron px-1.5">
+                  <Text className="text-[10px] font-bold text-hwhite">
+                    {filterCount}
                   </Text>
                 </View>
               )}
-            </View>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push("/orders")}
-            className="h-12 w-12 items-center justify-center rounded-xl"
-            accessibilityRole="button"
-            accessibilityLabel="Siparişler"
-          >
-            <AppIcon name="orders" />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push("/profile")}
-            className="h-12 w-12 items-center justify-center rounded-xl"
-            accessibilityRole="button"
-            accessibilityLabel="Profil"
-          >
-            <AppIcon name="profile" />
-          </Pressable>
-        </View>
-      </View>
-
-      <View className="mx-4 mb-3 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
-        <TabButton
-          label="Hasat Tarifleri"
-          active={tab === "public"}
-          onPress={() => setTab("public")}
-        />
-        <TabButton
-          label={`Defterim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
-          active={tab === "mine"}
-          onPress={() => setTab("mine")}
-        />
-      </View>
-
-      {tab === "public" && (
-        <View className="mx-4 mb-3 flex-row items-center gap-2">
-          <View className="h-12 flex-1 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3">
-            <AppIcon name="search" size={18} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Tarif, mutfak veya etiket ara"
-              placeholderTextColor="#8A9CA3"
-              className="ml-2 flex-1 text-sm text-hwhite"
-              accessibilityLabel="Tariflerde ara"
-              returnKeyType="search"
-            />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => setFilterSheetOpen(true)}
-            className="h-12 flex-row items-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3"
-            accessibilityRole="button"
-            accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
-          >
-            <AppIcon name="filter" size={18} />
-            <Text className="text-xs text-hwhite">Filtrele</Text>
-            {filterCount > 0 && (
-              <View className="rounded-full bg-saffron px-1.5">
-                <Text className="text-[10px] font-bold text-hwhite">
-                  {filterCount}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-      )}
+        )}
+      </ScrollView>
 
       {isOffline && (tab === "mine" || items.length > 0) && <OfflineBanner />}
 
@@ -289,16 +329,20 @@ export default function RecipeListScreen() {
 
       {tab === "mine" ? (
         <>
-          <View className="mx-4 mb-3 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
+          <View
+            className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
+          >
             <TabButton
               label={`Tariflerim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
               active={mineSubTab === "own"}
               onPress={() => setMineSubTab("own")}
+              stacked={responsive.stackTabs}
             />
             <TabButton
               label={`Favorilerim${favoriteItems.length > 0 ? ` (${favoriteItems.length})` : ""}`}
               active={mineSubTab === "favorites"}
               onPress={() => setMineSubTab("favorites")}
+              stacked={responsive.stackTabs}
             />
           </View>
           {mineSubTab === "own" ? (
@@ -417,12 +461,15 @@ export default function RecipeListScreen() {
           durumu kendi içinde açıklıyor. */}
       <Pressable
         onPress={() => router.push("/import")}
-        className="absolute right-5 min-h-12 justify-center rounded-xl bg-primary px-5 py-3.5"
+        className={`absolute right-5 min-h-12 flex-row items-center justify-center gap-2 rounded-xl bg-primary py-3.5 ${responsive.compactAddAction ? "w-12 px-0" : "px-5"}`}
         accessibilityRole="button"
         accessibilityLabel="Tarif ekle"
         style={{ bottom: insets.bottom + 20 }}
       >
-        <Text className="font-medium text-hwhite">+ Tarif Ekle</Text>
+        <AppIcon name="add" color="#FDFAF5" />
+        {!responsive.compactAddAction && (
+          <Text className="font-medium text-hwhite">Tarif Ekle</Text>
+        )}
       </Pressable>
 
       <RecipeFilterSheet
@@ -438,7 +485,7 @@ export default function RecipeListScreen() {
         visible={introVisible}
         onFinish={() => {
           setIntroVisible(false);
-          void markIntroTourSeen();
+          if (introUserId) void markIntroTourSeen(introUserId);
         }}
       />
     </View>
@@ -449,20 +496,22 @@ function TabButton({
   label,
   active,
   onPress,
+  stacked,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  stacked: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      className={`min-h-11 flex-1 items-center justify-center rounded-lg px-2 py-2 ${active ? "bg-primary" : ""}`}
+      className={`min-h-12 items-center justify-center rounded-lg px-3 py-3 ${stacked ? "w-full" : "flex-1"} ${active ? "bg-primary" : ""}`}
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
     >
       <Text
-        className={`text-xs font-medium ${active ? "text-hwhite" : "text-hmuted"}`}
+        className={`text-center text-xs font-medium ${active ? "text-hwhite" : "text-hmuted"}`}
       >
         {label}
       </Text>
@@ -725,7 +774,7 @@ function RecipeCard({
         />
       </Pressable>
       <View className="px-4 py-3">
-        <Text className="text-base font-medium text-hwhite" numberOfLines={2}>
+        <Text className="text-base font-medium text-hwhite">
           {recipe.title}
         </Text>
         <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
