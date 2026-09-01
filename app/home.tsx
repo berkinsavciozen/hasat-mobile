@@ -540,20 +540,30 @@ function MyRecipesTab({
               {item.title}
             </Text>
             <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
-              <Text className="text-[11px] text-hmuted">
-                🔒 yalnızca sana görünür ·{" "}
-                {SOURCE_TYPE_LABELS[item.source_type] ?? item.source_type}
-              </Text>
-              {minutes > 0 && (
+              <View className="flex-row items-center gap-1">
+                <AppIcon name="lock" size={12} color="#8A8678" />
                 <Text className="text-[11px] text-hmuted">
-                  · 🕐 {formatTotalMinutes(minutes)}
+                  yalnızca sana görünür ·{" "}
+                  {SOURCE_TYPE_LABELS[item.source_type] ?? item.source_type}
                 </Text>
+              </View>
+              {minutes > 0 && (
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-[11px] text-hmuted">·</Text>
+                  <AppIcon name="clock" size={12} color="#8A8678" />
+                  <Text className="text-[11px] text-hmuted">
+                    {formatTotalMinutes(minutes)}
+                  </Text>
+                </View>
               )}
             </View>
             {lowConfidence && (
-              <Text className="mt-1.5 text-[11px] text-gold">
-                ⚠️ Okurken emin olamadık — gözden geçirmek isteyebilirsin.
-              </Text>
+              <View className="mt-1.5 flex-row items-start gap-1">
+                <AppIcon name="warning" size={12} color="#D4A843" />
+                <Text className="flex-1 text-[11px] text-gold">
+                  Okurken emin olamadık — gözden geçirmek isteyebilirsin.
+                </Text>
+              </View>
             )}
           </Pressable>
         );
@@ -637,9 +647,13 @@ function FavoritesTab({
                 </Text>
               )}
               {minutes > 0 && (
-                <Text className="text-[11px] text-hmuted">
-                  · 🕐 {formatTotalMinutes(minutes)}
-                </Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-[11px] text-hmuted">·</Text>
+                  <AppIcon name="clock" size={12} color="#8A8678" />
+                  <Text className="text-[11px] text-hmuted">
+                    {formatTotalMinutes(minutes)}
+                  </Text>
+                </View>
               )}
             </View>
           </Pressable>
@@ -716,9 +730,12 @@ function RecipeCard({
         </Text>
         <View className="mt-1 flex-row flex-wrap items-center gap-x-2">
           {minutes > 0 && (
-            <Text className="text-[11px] text-hmuted">
-              🕐 {formatTotalMinutes(minutes)}
-            </Text>
+            <View className="flex-row items-center gap-1">
+              <AppIcon name="clock" size={12} color="#8A8678" />
+              <Text className="text-[11px] text-hmuted">
+                {formatTotalMinutes(minutes)}
+              </Text>
+            </View>
           )}
           {recipe.difficulty && (
             <Text className="text-[11px] text-hmuted">
@@ -731,8 +748,9 @@ function RecipeCard({
         </View>
         {needsAdvanceStart(recipe) && (
           <View className="mt-1.5 flex-row items-center gap-1 self-start rounded-full bg-gold/25 px-2 py-0.5">
+            <AppIcon name="timer" size={12} color="#1A1A14" />
             <Text className="text-[10px] font-medium text-dark">
-              ⏰ Önceden başlamak gerekir
+              Önceden başlamak gerekir
             </Text>
           </View>
         )}

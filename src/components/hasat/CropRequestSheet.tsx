@@ -121,7 +121,7 @@ export function CropRequestSheet({
             </>
           ) : done ? (
             <View className="items-center py-6">
-              <AppIcon name="success" size={34} color="#1F6E82" />
+              <AppIcon name="success" size={34} color="#6B8F5E" />
               <Text className="mt-3 text-center text-sm text-hwhite">
                 Talebiniz alındı — eşleşen üreticilere bildirim gönderildi. Bu
                 ürün geldiğinde size de haber vereceğiz.
