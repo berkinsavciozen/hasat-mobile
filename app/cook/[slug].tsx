@@ -32,6 +32,7 @@ import {
   getNotificationPermission,
   requestNotificationPermission,
 } from "@/lib/native/notifications";
+import { AppIcon } from "@/components/hasat/AppIcon";
 
 export default function CookModeScreen() {
   const insets = useSafeAreaInsets();
@@ -155,7 +156,7 @@ export default function CookModeScreen() {
           accessibilityRole="button"
           accessibilityLabel="Pişirme modundan çık"
         >
-          <Text className="text-2xl text-hwhite">✕</Text>
+          <AppIcon name="close" color="#FDFAF5" />
         </Pressable>
         <Text className="text-sm text-hmuted">
           {index + 1} / {steps.length}

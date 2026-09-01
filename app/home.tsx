@@ -323,7 +323,7 @@ export default function RecipeListScreen() {
         </View>
       ) : showEmptyOfflineState ? (
         <View className="flex-1 items-center justify-center px-8">
-          <Text style={{ fontSize: 40 }}>📶✕</Text>
+          <AppIcon name="offline" size={40} color="#8A8678" />
           <Text className="mt-4 text-center text-base font-medium text-hwhite">
             Bağlantı yok
           </Text>
@@ -502,7 +502,7 @@ function MyRecipesTab({
   if (items.length === 0) {
     return (
       <View className="flex-1 items-center justify-center px-8">
-        <Text style={{ fontSize: 36 }}>📓</Text>
+        <AppIcon name="notebook" size={36} color="#8A8678" />
         <Text className="mt-3 text-center text-base font-medium text-hwhite">
           Defterin boş
         </Text>
@@ -596,7 +596,7 @@ function FavoritesTab({
   if (items.length === 0) {
     return (
       <View className="flex-1 items-center justify-center px-8">
-        <Text style={{ fontSize: 36 }}>🤍</Text>
+        <AppIcon name="favorite" size={36} color="#8A8678" />
         <Text className="mt-3 text-center text-base font-medium text-hwhite">
           Henüz favorin yok
         </Text>

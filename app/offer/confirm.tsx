@@ -6,6 +6,7 @@ import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { formatCropIngredient } from "@/lib/hasat/format";
+import { AppIcon } from "@/components/hasat/AppIcon";
 
 export default function OfferConfirmScreen() {
   const insets = useSafeAreaInsets();
@@ -16,7 +17,7 @@ export default function OfferConfirmScreen() {
       className="flex-1 items-center justify-center bg-dark px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
-      <Text style={{ fontSize: 56 }}>✅</Text>
+      <AppIcon name="success" size={56} color="#1F6E82" />
       <Text className="mt-4 text-center font-serif text-2xl text-hwhite">
         Teklif Gönderildi
       </Text>
@@ -36,6 +37,8 @@ export default function OfferConfirmScreen() {
       <Pressable
         onPress={() => router.replace("/orders")}
         className="mt-8 min-h-12 w-full items-center justify-center rounded-xl bg-primary py-3.5"
+        accessibilityRole="button"
+        accessibilityLabel="Siparişlerime git"
       >
         <Text className="text-sm font-medium text-hwhite">Siparişlerim</Text>
       </Pressable>

@@ -46,6 +46,15 @@ export const APP_ICON_MAP = {
   },
   leaf: { ios: "leaf.fill", android: "eco", web: "eco" },
   close: { ios: "xmark", android: "close", web: "close" },
+  clock: { ios: "clock.fill", android: "schedule", web: "schedule" },
+  timer: { ios: "timer", android: "timer", web: "timer" },
+  warning: {
+    ios: "exclamationmark.triangle.fill",
+    android: "warning",
+    web: "warning",
+  },
+  notebook: { ios: "book.closed.fill", android: "menu_book", web: "menu_book" },
+  offline: { ios: "wifi.slash", android: "wifi_off", web: "wifi_off" },
 } as const satisfies Record<
   string,
   { ios: SFSymbol; android: AndroidSymbol; web: AndroidSymbol }
@@ -73,12 +82,13 @@ export function AppIcon({
       tintColor={color}
       size={size}
       accessibilityLabel={accessibilityLabel}
+      accessible={Boolean(accessibilityLabel)}
       fallback={
         <Text
           accessibilityLabel={accessibilityLabel}
-          style={{ color, fontSize: size, lineHeight: size }}
+          style={{ color, fontSize: 0, lineHeight: size }}
         >
-          •
+          {" "}
         </Text>
       }
     />

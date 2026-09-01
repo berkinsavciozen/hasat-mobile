@@ -7,6 +7,8 @@
 import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { AppIcon } from "@/components/hasat/AppIcon";
+import { useReducedMotion } from "@/lib/native/useReducedMotion";
 
 export type DurationBucket = "30" | "60" | null;
 
@@ -49,13 +51,15 @@ export function RecipeFilterSheet({
   coverageAvailable: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={reduceMotion ? "none" : "slide"}
       transparent
       onRequestClose={onClose}
+      accessibilityViewIsModal
     >
       <KeyboardAvoidingScreen
         style={{
@@ -75,11 +79,11 @@ export function RecipeFilterSheet({
             <Text className="text-base font-medium text-hwhite">Filtrele</Text>
             <Pressable
               onPress={onClose}
-              className="h-11 w-11 items-center justify-center"
+              className="h-12 w-12 items-center justify-center"
               accessibilityRole="button"
               accessibilityLabel="Filtreleri kapat"
             >
-              <Text className="text-xl text-hwhite">✕</Text>
+              <AppIcon name="close" color="#FDFAF5" />
             </Pressable>
           </View>
 
@@ -169,12 +173,16 @@ export function RecipeFilterSheet({
             <Pressable
               onPress={() => onChange(EMPTY_RECIPE_FILTERS)}
               className="min-h-12 flex-1 items-center justify-center rounded-xl border border-white/15 py-3"
+              accessibilityRole="button"
+              accessibilityLabel="Filtreleri temizle"
             >
               <Text className="text-sm font-medium text-hwhite">Temizle</Text>
             </Pressable>
             <Pressable
               onPress={onClose}
               className="min-h-12 flex-1 items-center justify-center rounded-xl bg-primary py-3"
+              accessibilityRole="button"
+              accessibilityLabel="Filtreleri uygula"
             >
               <Text className="text-sm font-medium text-hwhite">Uygula</Text>
             </Pressable>
@@ -197,11 +205,13 @@ function FilterChip({
   return (
     <Pressable
       onPress={onPress}
-      className="min-h-11 justify-center rounded-xl border px-3 py-1.5"
+      className="min-h-12 justify-center rounded-xl border px-3 py-1.5"
       style={{
         borderColor: active ? "#1F6E82" : "rgba(253,250,245,0.15)",
         backgroundColor: active ? "rgba(22,127,140,0.25)" : "transparent",
       }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
     >
       <Text
         className="text-xs"
