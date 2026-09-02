@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import {
   View,
   Text,
   Pressable,
   FlatList,
-  ScrollView,
   ActivityIndicator,
   TextInput,
   useWindowDimensions,
@@ -78,7 +83,7 @@ type Tab = "public" | "mine";
 
 export default function RecipeListScreen() {
   const insets = useSafeAreaInsets();
-  const { width, height, fontScale } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const responsive = getHomeResponsiveLayout(width, fontScale);
   const isOffline = useIsOffline();
   const [tab, setTab] = useState<Tab>("public");
@@ -227,125 +232,115 @@ export default function RecipeListScreen() {
     return true;
   });
 
-  return (
-    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
-      <ScrollView
-        scrollEnabled={responsive.stackHeader}
-        showsVerticalScrollIndicator={responsive.stackHeader}
-        style={
-          responsive.stackHeader
-            ? { flexGrow: 0, maxHeight: Math.max(240, height * 0.55) }
-            : { flexGrow: 0 }
-        }
+  const homeHeader = (
+    <>
+      <View
+        className={`px-6 pb-3 pt-2 ${responsive.stackHeader ? "gap-2" : "flex-row items-center justify-between"}`}
       >
-        <View
-          className={`px-6 pb-3 pt-2 ${responsive.stackHeader ? "gap-2" : "flex-row items-center justify-between"}`}
-        >
-          <View className={responsive.stackHeader ? "w-full" : "flex-1 pr-2"}>
-            <Text className="font-serif text-2xl font-bold text-hwhite">
-              Tarifler
-            </Text>
-            <Text className="text-xs text-hmuted">
-              Mevsiminde, çiftçiden doğrudan malzemeyle pişirin.
-            </Text>
-          </View>
-          <View
-            className={`flex-row items-center gap-1 ${responsive.stackHeader ? "self-end" : ""}`}
-          >
-            <Pressable
-              onPress={() => router.push("/notifications")}
-              className="h-12 w-12 items-center justify-center rounded-xl"
-              accessibilityRole="button"
-              accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
-            >
-              <View>
-                <AppIcon name="bell" />
-                {unreadCount > 0 && (
-                  <View
-                    className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
-                    style={{ backgroundColor: "#C8833B" }}
-                  >
-                    <Text className="text-[9px] font-bold text-hwhite">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/orders")}
-              className="h-12 w-12 items-center justify-center rounded-xl"
-              accessibilityRole="button"
-              accessibilityLabel="Siparişler"
-            >
-              <AppIcon name="orders" />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/profile")}
-              className="h-12 w-12 items-center justify-center rounded-xl"
-              accessibilityRole="button"
-              accessibilityLabel="Profil"
-            >
-              <AppIcon name="profile" />
-            </Pressable>
-          </View>
+        <View className={responsive.stackHeader ? "w-full" : "flex-1 pr-2"}>
+          <Text className="font-serif text-2xl font-bold text-hwhite">
+            Tarifler
+          </Text>
+          <Text className="text-xs text-hmuted">
+            Mevsiminde, çiftçiden doğrudan malzemeyle pişirin.
+          </Text>
         </View>
-
         <View
-          className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
+          className={`flex-row items-center gap-1 ${responsive.stackHeader ? "self-end" : ""}`}
         >
-          <TabButton
-            label="Hasat Tarifleri"
-            active={tab === "public"}
-            onPress={() => setTab("public")}
-            stacked={responsive.stackTabs}
-          />
-          <TabButton
-            label={`Defterim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
-            active={tab === "mine"}
-            onPress={() => setTab("mine")}
-            stacked={responsive.stackTabs}
-          />
-        </View>
-
-        {tab === "public" && (
-          <View
-            className={`mx-4 mb-3 gap-2 ${responsive.stackSearch ? "" : "flex-row items-center"}`}
+          <Pressable
+            onPress={() => router.push("/notifications")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel={`Bildirimler${unreadCount ? `, ${unreadCount} okunmamış` : ""}`}
           >
-            <View
-              className={`min-h-12 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : "flex-1"}`}
-            >
-              <AppIcon name="search" size={18} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Tarif, mutfak veya etiket ara"
-                placeholderTextColor="#8A9CA3"
-                className="ml-2 flex-1 text-sm text-hwhite"
-                accessibilityLabel="Tariflerde ara"
-                returnKeyType="search"
-                multiline={responsive.stackSearch}
-              />
-            </View>
-            <Pressable
-              onPress={() => setFilterSheetOpen(true)}
-              className={`min-h-12 flex-row items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : ""}`}
-              accessibilityRole="button"
-              accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
-            >
-              <AppIcon name="filter" size={18} />
-              <Text className="text-xs text-hwhite">Filtrele</Text>
-              {filterCount > 0 && (
-                <View className="rounded-full bg-saffron px-1.5">
-                  <Text className="text-[10px] font-bold text-hwhite">
-                    {filterCount}
+            <View>
+              <AppIcon name="bell" />
+              {unreadCount > 0 && (
+                <View
+                  className="absolute -right-1.5 -top-1.5 min-w-[14px] items-center rounded-full px-1"
+                  style={{ backgroundColor: "#C8833B" }}
+                >
+                  <Text className="text-[9px] font-bold text-hwhite">
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </Text>
                 </View>
               )}
-            </Pressable>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/orders")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel="Siparişler"
+          >
+            <AppIcon name="orders" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/profile")}
+            className="h-12 w-12 items-center justify-center rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel="Profil"
+          >
+            <AppIcon name="profile" />
+          </Pressable>
+        </View>
+      </View>
+
+      <View
+        className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
+      >
+        <TabButton
+          label="Hasat Tarifleri"
+          active={tab === "public"}
+          onPress={() => setTab("public")}
+          stacked={responsive.stackTabs}
+        />
+        <TabButton
+          label={`Defterim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
+          active={tab === "mine"}
+          onPress={() => setTab("mine")}
+          stacked={responsive.stackTabs}
+        />
+      </View>
+
+      {tab === "public" && (
+        <View
+          className={`mx-4 mb-3 gap-2 ${responsive.stackSearch ? "" : "flex-row items-center"}`}
+        >
+          <View
+            className={`min-h-12 flex-row items-center rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : "flex-1"}`}
+          >
+            <AppIcon name="search" size={18} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Tarif, mutfak veya etiket ara"
+              placeholderTextColor="#8A9CA3"
+              className="ml-2 flex-1 text-sm text-hwhite"
+              accessibilityLabel="Tariflerde ara"
+              returnKeyType="search"
+              multiline={responsive.stackSearch}
+            />
           </View>
-        )}
-      </ScrollView>
+          <Pressable
+            onPress={() => setFilterSheetOpen(true)}
+            className={`min-h-12 flex-row items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/5 px-3 py-2 ${responsive.stackSearch ? "w-full" : ""}`}
+            accessibilityRole="button"
+            accessibilityLabel={`Filtreler${filterCount ? `, ${filterCount} etkin` : ""}`}
+          >
+            <AppIcon name="filter" size={18} />
+            <Text className="text-xs text-hwhite">Filtrele</Text>
+            {filterCount > 0 && (
+              <View className="rounded-full bg-saffron px-1.5">
+                <Text className="text-[10px] font-bold text-hwhite">
+                  {filterCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
+      )}
 
       {isOffline && (tab === "mine" || items.length > 0) && <OfflineBanner />}
 
@@ -356,114 +351,127 @@ export default function RecipeListScreen() {
           onDismiss={() => setShowPushCard(false)}
         />
       )}
+    </>
+  );
 
+  const mineHeader = (
+    <>
+      {homeHeader}
+      <View
+        className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
+      >
+        <TabButton
+          label={`Tariflerim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
+          active={mineSubTab === "own"}
+          onPress={() => setMineSubTab("own")}
+          stacked={responsive.stackTabs}
+        />
+        <TabButton
+          label={`Favorilerim${favoriteItems.length > 0 ? ` (${favoriteItems.length})` : ""}`}
+          active={mineSubTab === "favorites"}
+          onPress={() => setMineSubTab("favorites")}
+          stacked={responsive.stackTabs}
+        />
+      </View>
+    </>
+  );
+
+  return (
+    <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       {tab === "mine" ? (
-        <>
-          <View
-            className={`mx-4 mb-3 rounded-xl border border-white/10 bg-white/5 p-1 ${responsive.stackTabs ? "gap-1" : "flex-row"}`}
-          >
-            <TabButton
-              label={`Tariflerim${myItems.length > 0 ? ` (${myItems.length})` : ""}`}
-              active={mineSubTab === "own"}
-              onPress={() => setMineSubTab("own")}
-              stacked={responsive.stackTabs}
-            />
-            <TabButton
-              label={`Favorilerim${favoriteItems.length > 0 ? ` (${favoriteItems.length})` : ""}`}
-              active={mineSubTab === "favorites"}
-              onPress={() => setMineSubTab("favorites")}
-              stacked={responsive.stackTabs}
-            />
-          </View>
-          {mineSubTab === "own" ? (
-            <MyRecipesTab
-              isOffline={isOffline}
-              isLoading={mine.isLoading}
-              items={myItems}
-              bottomInset={insets.bottom}
-            />
-          ) : (
-            <FavoritesTab
-              isOffline={isOffline}
-              isLoading={favorites.isLoading}
-              items={favoriteItems}
-              bottomInset={insets.bottom}
-            />
-          )}
-        </>
-      ) : isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#1F6E82" />
-        </View>
-      ) : showEmptyOfflineState ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <AppIcon name="offline" size={40} color="#8A8678" />
-          <Text className="mt-4 text-center text-base font-medium text-hwhite">
-            Bağlantı yok
-          </Text>
-          <Text className="mt-1 text-center text-sm text-hmuted">
-            Tarifleri görmek için internete bağlanın.
-          </Text>
-          <Pressable
-            onPress={() => refetch()}
-            className="mt-6 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
-          >
-            <Text className="font-medium text-hwhite">
-              {isRefetching ? "Deneniyor…" : "Yeniden Dene"}
-            </Text>
-          </Pressable>
-        </View>
-      ) : isError && items.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-center text-sm text-hmuted">
-            Tarifler yüklenemedi.
-          </Text>
-          <Pressable
-            onPress={() => refetch()}
-            className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
-          >
-            <Text className="font-medium text-hwhite">Yeniden Dene</Text>
-          </Pressable>
-        </View>
-      ) : hasActiveConstraints && filteredItems.length === 0 ? (
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-center text-sm text-hmuted">
-            {hasSearch && filterCount > 0
-              ? "Arama ve filtrelerle eşleşen tarif yok."
-              : hasSearch
-                ? `“${search.trim()}” aramasıyla eşleşen tarif yok.`
-                : "Bu filtrelerle eşleşen tarif yok."}
-          </Text>
-          <Pressable
-            onPress={() => {
-              setSearch("");
-              setFilters(EMPTY_RECIPE_FILTERS);
-            }}
-            className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
-            accessibilityRole="button"
-            accessibilityLabel={
-              hasSearch && filterCount > 0
-                ? "Aramayı ve filtreleri temizle"
-                : hasSearch
-                  ? "Aramayı temizle"
-                  : "Filtreleri temizle"
-            }
-          >
-            <Text className="font-medium text-hwhite">
-              {hasSearch && filterCount > 0
-                ? "Aramayı ve Filtreleri Temizle"
-                : hasSearch
-                  ? "Aramayı Temizle"
-                  : "Filtreleri Temizle"}
-            </Text>
-          </Pressable>
-        </View>
+        mineSubTab === "own" ? (
+          <MyRecipesTab
+            header={mineHeader}
+            isOffline={isOffline}
+            isLoading={mine.isLoading}
+            items={myItems}
+            bottomInset={insets.bottom}
+          />
+        ) : (
+          <FavoritesTab
+            header={mineHeader}
+            isOffline={isOffline}
+            isLoading={favorites.isLoading}
+            items={favoriteItems}
+            bottomInset={insets.bottom}
+          />
+        )
       ) : (
         <FlatList
-          data={filteredItems}
+          data={isLoading ? [] : filteredItems}
           keyExtractor={(r) => r.id}
+          ListHeaderComponent={homeHeader}
+          ListEmptyComponent={
+            isLoading ? (
+              <View className="min-h-48 items-center justify-center">
+                <ActivityIndicator color="#1F6E82" />
+              </View>
+            ) : showEmptyOfflineState ? (
+              <View className="min-h-48 items-center justify-center px-8">
+                <AppIcon name="offline" size={40} color="#8A8678" />
+                <Text className="mt-4 text-center text-base font-medium text-hwhite">
+                  Bağlantı yok
+                </Text>
+                <Text className="mt-1 text-center text-sm text-hmuted">
+                  Tarifleri görmek için internete bağlanın.
+                </Text>
+                <Pressable
+                  onPress={() => refetch()}
+                  className="mt-6 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
+                >
+                  <Text className="font-medium text-hwhite">
+                    {isRefetching ? "Deneniyor…" : "Yeniden Dene"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : isError && items.length === 0 ? (
+              <View className="min-h-48 items-center justify-center px-8">
+                <Text className="text-center text-sm text-hmuted">
+                  Tarifler yüklenemedi.
+                </Text>
+                <Pressable
+                  onPress={() => refetch()}
+                  className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
+                >
+                  <Text className="font-medium text-hwhite">Yeniden Dene</Text>
+                </Pressable>
+              </View>
+            ) : hasActiveConstraints && filteredItems.length === 0 ? (
+              <View className="min-h-48 items-center justify-center px-8">
+                <Text className="text-center text-sm text-hmuted">
+                  {hasSearch && filterCount > 0
+                    ? "Arama ve filtrelerle eşleşen tarif yok."
+                    : hasSearch
+                      ? `“${search.trim()}” aramasıyla eşleşen tarif yok.`
+                      : "Bu filtrelerle eşleşen tarif yok."}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setSearch("");
+                    setFilters(EMPTY_RECIPE_FILTERS);
+                  }}
+                  className="mt-4 min-h-12 justify-center rounded-xl bg-primary px-6 py-3"
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    hasSearch && filterCount > 0
+                      ? "Aramayı ve filtreleri temizle"
+                      : hasSearch
+                        ? "Aramayı temizle"
+                        : "Filtreleri temizle"
+                  }
+                >
+                  <Text className="font-medium text-hwhite">
+                    {hasSearch && filterCount > 0
+                      ? "Aramayı ve Filtreleri Temizle"
+                      : hasSearch
+                        ? "Aramayı Temizle"
+                        : "Filtreleri Temizle"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null
+          }
           contentContainerStyle={{
-            padding: 16,
             paddingBottom: insets.bottom + 96,
           }}
           refreshing={refreshing}
@@ -473,14 +481,16 @@ export default function RecipeListScreen() {
             setRefreshing(false);
           }}
           renderItem={({ item }) => (
-            <RecipeCard
-              recipe={item}
-              isSaved={savedRecipeIds.has(item.id)}
-              favoriteStateLoading={favorites.isLoading}
-              availableCount={
-                coverage.data?.get(item.id)?.available_count ?? undefined
-              }
-            />
+            <View className="px-4">
+              <RecipeCard
+                recipe={item}
+                isSaved={savedRecipeIds.has(item.id)}
+                favoriteStateLoading={favorites.isLoading}
+                availableCount={
+                  coverage.data?.get(item.id)?.available_count ?? undefined
+                }
+              />
+            </View>
           )}
         />
       )}
@@ -550,53 +560,49 @@ function TabButton({
 }
 
 function MyRecipesTab({
+  header,
   isOffline,
   isLoading,
   items,
   bottomInset,
 }: {
+  header: ReactElement;
   isOffline: boolean;
   isLoading: boolean;
   items: MyRecipeItem[];
   bottomInset: number;
 }) {
-  if (isOffline) {
-    return (
-      <View className="flex-1 items-center justify-center px-8">
-        <Text className="text-center text-sm text-hmuted">
-          Defterin çevrimdışı görüntülenemiyor — kendi tariflerin cihaz
-          önbelleğinde tutulmuyor (önbellek yalnızca Hasat'ın herkese açık
-          tariflerini tutar). Bağlanınca burada olacaklar.
-        </Text>
-      </View>
-    );
-  }
-  if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#1F6E82" />
-      </View>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <View className="flex-1 items-center justify-center px-8">
-        <AppIcon name="notebook" size={36} color="#8A8678" />
-        <Text className="mt-3 text-center text-base font-medium text-hwhite">
-          Defterin boş
-        </Text>
-        <Text className="mt-1.5 text-center text-sm text-hmuted">
-          Elindeki bir tarifin fotoğrafını çek ya da metnini yapıştır — buraya
-          yalnızca sana görünen bir tarif olarak eklensin.
-        </Text>
-      </View>
-    );
-  }
+  const emptyState = isOffline ? (
+    <View className="min-h-48 items-center justify-center px-8">
+      <Text className="text-center text-sm text-hmuted">
+        Defterin çevrimdışı görüntülenemiyor — kendi tariflerin cihaz
+        önbelleğinde tutulmuyor (önbellek yalnızca Hasat'ın herkese açık
+        tariflerini tutar). Bağlanınca burada olacaklar.
+      </Text>
+    </View>
+  ) : isLoading ? (
+    <View className="min-h-48 items-center justify-center">
+      <ActivityIndicator color="#1F6E82" />
+    </View>
+  ) : (
+    <View className="min-h-48 items-center justify-center px-8">
+      <AppIcon name="notebook" size={36} color="#8A8678" />
+      <Text className="mt-3 text-center text-base font-medium text-hwhite">
+        Defterin boş
+      </Text>
+      <Text className="mt-1.5 text-center text-sm text-hmuted">
+        Elindeki bir tarifin fotoğrafını çek ya da metnini yapıştır — buraya
+        yalnızca sana görünen bir tarif olarak eklensin.
+      </Text>
+    </View>
+  );
   return (
     <FlatList
-      data={items}
+      data={isOffline || isLoading ? [] : items}
       keyExtractor={(r) => r.id}
-      contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 96 }}
+      ListHeaderComponent={header}
+      ListEmptyComponent={emptyState}
+      contentContainerStyle={{ paddingBottom: bottomInset + 96 }}
       renderItem={({ item }) => {
         const minutes =
           (item.prep_minutes ?? 0) +
@@ -613,7 +619,7 @@ function MyRecipesTab({
                 params: { slug: item.slug, own: "1" },
               })
             }
-            className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+            className="mx-4 mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
           >
             <Text className="text-base font-medium text-hwhite">
               {item.title}
@@ -656,51 +662,47 @@ function MyRecipesTab({
  * birleşmiyor. Buradan public tarif detayına gidiyor (`own` param'ı YOK —
  * bunlar Hasat'ın herkese açık tarifleri, kullanıcının kendi taslağı değil). */
 function FavoritesTab({
+  header,
   isOffline,
   isLoading,
   items,
   bottomInset,
 }: {
+  header: ReactElement;
   isOffline: boolean;
   isLoading: boolean;
   items: FavoriteRecipeItem[];
   bottomInset: number;
 }) {
-  if (isOffline) {
-    return (
-      <View className="flex-1 items-center justify-center px-8">
-        <Text className="text-center text-sm text-hmuted">
-          Favorilerin çevrimdışı görüntülenemiyor. Bağlanınca burada olacaklar.
-        </Text>
-      </View>
-    );
-  }
-  if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator color="#1F6E82" />
-      </View>
-    );
-  }
-  if (items.length === 0) {
-    return (
-      <View className="flex-1 items-center justify-center px-8">
-        <AppIcon name="favorite" size={36} color="#8A8678" />
-        <Text className="mt-3 text-center text-base font-medium text-hwhite">
-          Henüz favorin yok
-        </Text>
-        <Text className="mt-1.5 text-center text-sm text-hmuted">
-          Hasat Tarifleri'nde beğendiğin bir tarifin kalp ikonuna dokun, buraya
-          eklensin.
-        </Text>
-      </View>
-    );
-  }
+  const emptyState = isOffline ? (
+    <View className="min-h-48 items-center justify-center px-8">
+      <Text className="text-center text-sm text-hmuted">
+        Favorilerin çevrimdışı görüntülenemiyor. Bağlanınca burada olacaklar.
+      </Text>
+    </View>
+  ) : isLoading ? (
+    <View className="min-h-48 items-center justify-center">
+      <ActivityIndicator color="#1F6E82" />
+    </View>
+  ) : (
+    <View className="min-h-48 items-center justify-center px-8">
+      <AppIcon name="favorite" size={36} color="#8A8678" />
+      <Text className="mt-3 text-center text-base font-medium text-hwhite">
+        Henüz favorin yok
+      </Text>
+      <Text className="mt-1.5 text-center text-sm text-hmuted">
+        Hasat Tarifleri'nde beğendiğin bir tarifin kalp ikonuna dokun, buraya
+        eklensin.
+      </Text>
+    </View>
+  );
   return (
     <FlatList
-      data={items}
+      data={isOffline || isLoading ? [] : items}
       keyExtractor={(r) => r.id}
-      contentContainerStyle={{ padding: 16, paddingBottom: bottomInset + 96 }}
+      ListHeaderComponent={header}
+      ListEmptyComponent={emptyState}
+      contentContainerStyle={{ paddingBottom: bottomInset + 96 }}
       renderItem={({ item }) => {
         const minutes =
           (item.prep_minutes ?? 0) +
@@ -709,7 +711,7 @@ function FavoritesTab({
         return (
           <Pressable
             onPress={() => router.push(`/recipe/${item.slug}`)}
-            className="mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
+            className="mx-4 mb-3 rounded-2xl border border-white/10 bg-white/5 p-3"
           >
             <Text className="text-base font-medium text-hwhite">
               {item.title}
