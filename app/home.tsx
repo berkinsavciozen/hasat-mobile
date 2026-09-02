@@ -53,6 +53,7 @@ import { useUnreadCount } from "@/lib/hasat/notifications";
 import { AppIcon } from "@/components/hasat/AppIcon";
 import { supabase } from "@/lib/supabase/client";
 import { getHomeResponsiveLayout } from "@/lib/native/homeLayout";
+import { createIntroTourEvaluator } from "@/lib/hasat/introTourEvaluator";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -102,31 +103,39 @@ export default function RecipeListScreen() {
   const [pushBusy, setPushBusy] = useState(false);
 
   // ── İlk-kullanım tanıtım turu ────────────────────────────────────────────
-  // `/home`'un ilk mount'una bağlandı (yalnızca `onboarding.tsx`'in
-  // `finish()`'ine değil): yeni kayıtları da, tur eklenmeden önce zaten
-  // profili olan mevcut kullanıcıları da tek bir yerden kapsar. Bayrak,
-  // persist edilmiş Supabase oturumundaki kullanıcı ID'sine göre ayrılır;
-  // aynı cihazdaki farklı hesaplar birbirinin tur durumunu miras almaz.
+  // İlk oturum hydrate'ını ve sonraki tüm auth değişimlerini dinle. Böylece
+  // Home oturumdan önce mount olsa bile onboarding sonrası kullanıcı görünür
+  // görünmez tur değerlendirilir; kullanıcı değişince eski async okuma yeni
+  // hesabın modal durumuna yazamaz.
   const [introVisible, setIntroVisible] = useState(false);
   const [introUserId, setIntroUserId] = useState<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (cancelled || !session?.user.id) return;
-        const userId = session.user.id;
-        setIntroUserId(userId);
-        const seen = await hasSeenIntroTour(userId);
-        if (!cancelled && !seen) setIntroVisible(true);
-      } catch (error) {
-        console.warn("[introTour] oturum okunamadı", error);
-      }
-    })();
+    const evaluator = createIntroTourEvaluator(hasSeenIntroTour, (decision) => {
+      setIntroUserId(decision.userId);
+      setIntroVisible(decision.visible);
+    });
+
+    let authEventRevision = 0;
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        authEventRevision += 1;
+        void evaluator.evaluate(session?.user.id ?? null);
+      },
+    );
+
+    const initialRevision = authEventRevision;
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        // Bir auth olayı getSession'dan önce geldiyse eski snapshot'ı yoksay.
+        if (authEventRevision !== initialRevision) return;
+        return evaluator.evaluate(session?.user.id ?? null);
+      })
+      .catch(() => console.warn("[introTour] oturum okunamadı"));
+
     return () => {
-      cancelled = true;
+      evaluator.dispose();
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
