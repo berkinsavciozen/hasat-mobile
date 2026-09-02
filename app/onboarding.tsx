@@ -25,7 +25,14 @@
 //   erişebileceği bir Supabase Edge Function değil (web app'in kendi sunucu
 //   çalışma zamanına bağlı) — mobilden çağrılamaz.
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase/client";
@@ -87,7 +94,7 @@ export default function OnboardingScreen() {
       });
       if (bErr) throw bErr;
 
-      setRole("buyer");
+      setRole("buyer", user.id);
       updateUser({ id: user.id, name: name.trim() });
       router.replace("/home");
     } catch (e) {
@@ -109,7 +116,9 @@ export default function OnboardingScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text className="font-serif text-2xl text-hwhite">Hoş geldin</Text>
-        <Text className="mt-1 text-sm text-hmuted">Üreticilerin seni tanıması için birkaç bilgi.</Text>
+        <Text className="mt-1 text-sm text-hmuted">
+          Üreticilerin seni tanıması için birkaç bilgi.
+        </Text>
 
         <View className="mt-6 flex-row rounded-xl border border-white/10 bg-white/5 p-1">
           {(["individual", "company"] as const).map((m) => {
@@ -123,7 +132,9 @@ export default function OnboardingScreen() {
                 }}
                 className={`flex-1 items-center rounded-lg py-2.5 ${on ? "bg-gold" : ""}`}
               >
-                <Text className={`text-sm font-medium ${on ? "text-dark" : "text-hwhite"}`}>
+                <Text
+                  className={`text-sm font-medium ${on ? "text-dark" : "text-hwhite"}`}
+                >
                   {m === "individual" ? "Bireysel" : "Şirket"}
                 </Text>
               </Pressable>
@@ -137,7 +148,9 @@ export default function OnboardingScreen() {
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder={mode === "individual" ? "Örn. Ayşe Yılmaz" : "Örn. Mikla Restaurant"}
+          placeholder={
+            mode === "individual" ? "Örn. Ayşe Yılmaz" : "Örn. Mikla Restaurant"
+          }
           placeholderTextColor="rgba(253,250,245,0.3)"
           className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-base text-hwhite"
         />
@@ -153,7 +166,9 @@ export default function OnboardingScreen() {
                     key={t.id}
                     onPress={() => setType(t.id)}
                     className={`rounded-xl border px-3.5 py-2.5 ${
-                      on ? "border-gold bg-gold/20" : "border-white/10 bg-white/5"
+                      on
+                        ? "border-gold bg-gold/20"
+                        : "border-white/10 bg-white/5"
                     }`}
                   >
                     <Text className="text-sm text-hwhite">{t.label}</Text>
@@ -164,7 +179,9 @@ export default function OnboardingScreen() {
           </>
         )}
 
-        <Text className="mb-2 mt-5 text-xs text-hmuted">Aylık Tahmini Hacim (opsiyonel)</Text>
+        <Text className="mb-2 mt-5 text-xs text-hmuted">
+          Aylık Tahmini Hacim (opsiyonel)
+        </Text>
         <View className="flex-row flex-wrap gap-2">
           {VOLUMES.map((v) => {
             const on = volume === v;
@@ -190,7 +207,11 @@ export default function OnboardingScreen() {
           className="mt-8 w-full items-center rounded-xl bg-gold py-3.5"
           style={{ opacity: !canSubmit || saving ? 0.4 : 1 }}
         >
-          {saving ? <ActivityIndicator color="#1A1A14" /> : <Text className="font-medium text-dark">Keşfetmeye Başla →</Text>}
+          {saving ? (
+            <ActivityIndicator color="#1A1A14" />
+          ) : (
+            <Text className="font-medium text-dark">Keşfetmeye Başla →</Text>
+          )}
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingScreen>

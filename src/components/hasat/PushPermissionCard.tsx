@@ -28,15 +28,18 @@ export function PushPermissionCard({
       <View className="mt-4 flex-row justify-end gap-3">
         <Pressable
           onPress={onDismiss}
-          className="min-h-11 justify-center rounded-xl px-3 py-2"
+          className="min-h-12 justify-center rounded-xl px-3 py-2"
+          accessibilityRole="button"
         >
           <Text className="text-xs text-hmuted">Şimdi değil</Text>
         </Pressable>
         <Pressable
           disabled={busy}
           onPress={onAccept}
-          className="min-h-11 justify-center rounded-xl bg-primary px-4 py-2"
+          className="min-h-12 justify-center rounded-xl bg-primary px-4 py-2"
           style={{ opacity: busy ? 0.5 : 1 }}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy, busy }}
         >
           <Text className="text-xs font-medium text-hwhite">
             {busy ? "…" : "Bildirimlere izin ver"}

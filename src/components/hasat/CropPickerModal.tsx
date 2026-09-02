@@ -4,10 +4,20 @@
 // bir picker/modal ilk kez ekleniyor (grep: mevcut bir örnek yok) — mevcut
 // ekranlarla aynı sade Pressable/View/Text + nativewind stiline uyuyor.
 import { useEffect, useMemo, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, FlatList, ActivityIndicator } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  FlatList,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { loadEdibleCropOptions, type CropOption } from "@/lib/hasat/import";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { AppIcon } from "@/components/hasat/AppIcon";
+import { useReducedMotion } from "@/lib/native/useReducedMotion";
 
 let cachedOptions: CropOption[] | null = null;
 
@@ -25,6 +35,7 @@ export function CropPickerModal({
   onSelect: (crop: string | null) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const [options, setOptions] = useState<CropOption[] | null>(cachedOptions);
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
@@ -47,29 +58,48 @@ export function CropPickerModal({
     if (!options) return [];
     const q = query.trim().toLocaleLowerCase("tr");
     if (!q) return options;
-    return options.filter((o) => o.displayName.toLocaleLowerCase("tr").includes(q));
+    return options.filter((o) =>
+      o.displayName.toLocaleLowerCase("tr").includes(q),
+    );
   }, [options, query]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingScreen style={{ justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+    <Modal
+      visible={visible}
+      animationType={reduceMotion ? "none" : "slide"}
+      transparent
+      onRequestClose={onClose}
+      accessibilityViewIsModal
+    >
+      <KeyboardAvoidingScreen
+        style={{
+          justifyContent: "flex-end",
+          backgroundColor: "rgba(0,0,0,0.5)",
+        }}
+      >
         <View
           className="max-h-[80%] rounded-t-2xl bg-dark px-5"
           style={{ paddingBottom: insets.bottom + 16, paddingTop: 16 }}
         >
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base font-medium text-hwhite" numberOfLines={1}>
+            <Text className="mr-3 flex-1 text-base font-medium text-hwhite">
               "{ingredientName || "malzeme"}" için ürün
             </Text>
-            <Pressable onPress={onClose} hitSlop={12}>
-              <Text className="text-xl text-hwhite">✕</Text>
+            <Pressable
+              onPress={onClose}
+              className="h-12 w-12 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Ürün seçiciyi kapat"
+            >
+              <AppIcon name="close" color="#FDFAF5" />
             </Pressable>
           </View>
 
           {currentCrop && (
             <Pressable
               onPress={() => onSelect(null)}
-              className="mb-3 items-center rounded-xl border border-white/15 py-2.5"
+              className="mb-3 min-h-12 items-center justify-center rounded-xl border border-white/15 py-2.5"
+              accessibilityRole="button"
             >
               <Text className="text-sm text-hmuted">Eşleşmeyi kaldır</Text>
             </Pressable>
@@ -81,6 +111,8 @@ export function CropPickerModal({
             placeholder="Ürün ara…"
             placeholderTextColor="rgba(253,250,245,0.3)"
             className="mb-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-hwhite"
+            accessibilityLabel="Ürün ara"
+            returnKeyType="search"
           />
 
           {!options && !loadError && (
@@ -90,7 +122,8 @@ export function CropPickerModal({
           )}
           {loadError && (
             <Text className="py-4 text-center text-xs text-hred">
-              Ürün listesi yüklenemedi. Bağlantını kontrol edip tekrar dener misin?
+              Ürün listesi yüklenemedi. Bağlantını kontrol edip tekrar dener
+              misin?
             </Text>
           )}
           {options && (
@@ -100,15 +133,23 @@ export function CropPickerModal({
               style={{ maxHeight: 360 }}
               keyboardShouldPersistTaps="handled"
               ListEmptyComponent={
-                <Text className="py-4 text-center text-xs text-hmuted">Eşleşen ürün yok.</Text>
+                <Text className="py-4 text-center text-xs text-hmuted">
+                  Eşleşen ürün yok.
+                </Text>
               }
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => onSelect(item.crop)}
-                  className="flex-row items-center justify-between border-b border-white/5 py-3"
+                  className="min-h-12 flex-row items-center justify-between border-b border-white/5 py-3"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: item.crop === currentCrop }}
                 >
-                  <Text className="text-sm text-hwhite">{item.displayName}</Text>
-                  {item.crop === currentCrop && <Text className="text-saffron">✓</Text>}
+                  <Text className="text-sm text-hwhite">
+                    {item.displayName}
+                  </Text>
+                  {item.crop === currentCrop && (
+                    <AppIcon name="success" color="#0D3B66" />
+                  )}
                 </Pressable>
               )}
             />

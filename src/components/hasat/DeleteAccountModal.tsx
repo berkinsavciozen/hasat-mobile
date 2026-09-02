@@ -3,10 +3,20 @@
 // ile aynı onay metni + aynı RPC — yalnızca UI katmanı platforma özel
 // (CropRequestSheet ile aynı Modal deseni).
 import { useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDeleteAccount } from "@/lib/hasat/account";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { AppIcon } from "@/components/hasat/AppIcon";
+import { useReducedMotion } from "@/lib/native/useReducedMotion";
 
 const CONFIRM_PHRASE = "HESABIMI SİL";
 
@@ -20,10 +30,12 @@ export function DeleteAccountModal({
   onDeleted: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const deleteAccount = useDeleteAccount();
   const [confirmText, setConfirmText] = useState("");
   const [errorText, setErrorText] = useState<string | null>(null);
-  const canConfirm = confirmText.trim().toLocaleUpperCase("tr-TR") === CONFIRM_PHRASE;
+  const canConfirm =
+    confirmText.trim().toLocaleUpperCase("tr-TR") === CONFIRM_PHRASE;
 
   const close = () => {
     setConfirmText("");
@@ -43,31 +55,58 @@ export function DeleteAccountModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <KeyboardAvoidingScreen style={{ justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+    <Modal
+      visible={visible}
+      animationType={reduceMotion ? "none" : "slide"}
+      transparent
+      onRequestClose={close}
+      accessibilityViewIsModal
+    >
+      <KeyboardAvoidingScreen
+        style={{
+          justifyContent: "flex-end",
+          backgroundColor: "rgba(0,0,0,0.5)",
+        }}
+      >
         <ScrollView
           className="max-h-[85%] rounded-t-2xl bg-dark"
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 16, paddingTop: 16 }}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: insets.bottom + 16,
+            paddingTop: 16,
+          }}
           keyboardShouldPersistTaps="handled"
         >
           <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-base font-medium text-hred">Hesabını Sil</Text>
-            <Pressable onPress={close} hitSlop={12}>
-              <Text className="text-xl text-hwhite">✕</Text>
+            <Text className="text-base font-medium text-hred">
+              Hesabını Sil
+            </Text>
+            <Pressable
+              onPress={close}
+              className="h-12 w-12 items-center justify-center"
+              accessibilityRole="button"
+              accessibilityLabel="Hesap silme penceresini kapat"
+            >
+              <AppIcon name="close" color="#FDFAF5" />
             </Pressable>
           </View>
 
-          <Text className="text-sm text-hmuted">Bu işlem geri alınamaz. Sildiğinde:</Text>
+          <Text className="text-sm text-hmuted">
+            Bu işlem geri alınamaz. Sildiğinde:
+          </Text>
           <View className="mt-2 gap-1">
             <Text className="text-sm text-hmuted">
-              • Telefonun, adın, adreslerin, banka bilginin ve kaydettiğin tariflerin silinir.
+              • Telefonun, adın, adreslerin, banka bilginin ve kaydettiğin
+              tariflerin silinir.
             </Text>
             <Text className="text-sm text-hmuted">
-              • Teklif/sipariş/değerlendirme geçmişin, karşı tarafın kaydı ve itibarı korunacak
-              şekilde kimliğinden arındırılarak kalır (yasal saklama yükümlülüğü).
+              • Teklif/sipariş/değerlendirme geçmişin, karşı tarafın kaydı ve
+              itibarı korunacak şekilde kimliğinden arındırılarak kalır (yasal
+              saklama yükümlülüğü).
             </Text>
             <Text className="text-sm text-hmuted">
-              • Aynı telefon numarasıyla dilediğin zaman yeniden kayıt olabilirsin.
+              • Aynı telefon numarasıyla dilediğin zaman yeniden kayıt
+              olabilirsin.
             </Text>
           </View>
 
@@ -81,20 +120,32 @@ export function DeleteAccountModal({
             placeholderTextColor="rgba(253,250,245,0.3)"
             autoCapitalize="characters"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
+            accessibilityLabel={`Onaylamak için ${CONFIRM_PHRASE} yazın`}
           />
 
-          {errorText && <Text className="mt-3 text-xs text-hred">{errorText}</Text>}
+          {errorText && (
+            <Text className="mt-3 text-xs text-hred">{errorText}</Text>
+          )}
 
           <Pressable
             disabled={!canConfirm || deleteAccount.isPending}
             onPress={() => void onConfirm()}
-            className="mt-4 items-center rounded-xl bg-hred py-3.5"
-            style={{ opacity: !canConfirm || deleteAccount.isPending ? 0.5 : 1 }}
+            className="mt-4 min-h-12 items-center justify-center rounded-xl bg-hred py-3.5"
+            style={{
+              opacity: !canConfirm || deleteAccount.isPending ? 0.5 : 1,
+            }}
+            accessibilityRole="button"
+            accessibilityState={{
+              disabled: !canConfirm || deleteAccount.isPending,
+              busy: deleteAccount.isPending,
+            }}
           >
             {deleteAccount.isPending ? (
               <ActivityIndicator color="#FDFAF5" />
             ) : (
-              <Text className="font-medium text-hwhite">Hesabımı Kalıcı Olarak Sil</Text>
+              <Text className="font-medium text-hwhite">
+                Hesabımı Kalıcı Olarak Sil
+              </Text>
             )}
           </Pressable>
         </ScrollView>
