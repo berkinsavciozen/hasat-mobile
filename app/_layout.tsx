@@ -85,6 +85,9 @@ export default function RootLayout() {
     // `verify()`'indeki aynı sorgu deseni (kural #106, yeni bir sorgu icat
     // edilmedi) — ve store'a yaz. Session yoksa (misafir/çıkış yapılmış)
     // dokunma, store'un kendi "buyer" varsayılanı kalır.
+    // Persist edilmiş önceki rol, bu bootstrap sorgusu başarıyla aynı
+    // kullanıcı için çözülene kadar yetkili kabul edilmez.
+    useHasatMobileSession.getState().clearRoleResolution();
     supabase.auth
       .getSession()
       .then(async ({ data: { session } }) => {
@@ -97,7 +100,10 @@ export default function RootLayout() {
         if (profile) {
           useHasatMobileSession
             .getState()
-            .setRole(profile.role === "buyer" ? "buyer" : "farmer");
+            .setRole(
+              profile.role === "buyer" ? "buyer" : "farmer",
+              session.user.id,
+            );
         }
       })
       .finally(() => setBootstrapped(true));

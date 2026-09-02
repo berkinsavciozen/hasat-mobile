@@ -54,6 +54,7 @@ import { AppIcon } from "@/components/hasat/AppIcon";
 import { supabase } from "@/lib/supabase/client";
 import { getHomeResponsiveLayout } from "@/lib/native/homeLayout";
 import { createIntroTourEvaluator } from "@/lib/hasat/introTourEvaluator";
+import { useHasatMobileSession } from "@/lib/store/session";
 
 /**
  * P23-M5-b: tarif listesi, mobil v1'in huni girişi (bkz. Build/P23-Mobile.md
@@ -109,17 +110,29 @@ export default function RecipeListScreen() {
   // hesabın modal durumuna yazamaz.
   const [introVisible, setIntroVisible] = useState(false);
   const [introUserId, setIntroUserId] = useState<string | null>(null);
-  useEffect(() => {
-    const evaluator = createIntroTourEvaluator(hasSeenIntroTour, (decision) => {
-      setIntroUserId(decision.userId);
-      setIntroVisible(decision.visible);
-    });
+  const [introAuthUserId, setIntroAuthUserId] = useState<string | null>(null);
+  const role = useHasatMobileSession((state) => state.role);
+  const roleResolvedForUserId = useHasatMobileSession(
+    (state) => state.roleResolvedForUserId,
+  );
+  const authoritativeRole =
+    introAuthUserId && roleResolvedForUserId === introAuthUserId ? role : null;
 
+  const introEvaluator = useMemo(
+    () =>
+      createIntroTourEvaluator(hasSeenIntroTour, (decision) => {
+        setIntroUserId(decision.userId);
+        setIntroVisible(decision.visible);
+      }),
+    [],
+  );
+
+  useEffect(() => {
     let authEventRevision = 0;
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         authEventRevision += 1;
-        void evaluator.evaluate(session?.user.id ?? null);
+        setIntroAuthUserId(session?.user.id ?? null);
       },
     );
 
@@ -129,15 +142,23 @@ export default function RecipeListScreen() {
       .then(({ data: { session } }) => {
         // Bir auth olayı getSession'dan önce geldiyse eski snapshot'ı yoksay.
         if (authEventRevision !== initialRevision) return;
-        return evaluator.evaluate(session?.user.id ?? null);
+        setIntroAuthUserId(session?.user.id ?? null);
       })
       .catch(() => console.warn("[introTour] oturum okunamadı"));
 
     return () => {
-      evaluator.dispose();
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    void introEvaluator.evaluate({
+      userId: introAuthUserId,
+      role: authoritativeRole,
+    });
+  }, [authoritativeRole, introAuthUserId, introEvaluator]);
+
+  useEffect(() => () => introEvaluator.dispose(), [introEvaluator]);
 
   useEffect(() => {
     let cancelled = false;

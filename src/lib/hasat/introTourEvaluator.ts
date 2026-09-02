@@ -3,6 +3,11 @@ export type IntroTourDecision = {
   visible: boolean;
 };
 
+export type IntroTourIdentity = {
+  userId: string | null;
+  role: "buyer" | "farmer" | null;
+};
+
 /**
  * Serializes auth-driven storage reads. A later auth state always invalidates
  * an earlier pending read, so user A can never update user B's modal state.
@@ -15,10 +20,10 @@ export function createIntroTourEvaluator(
   let disposed = false;
 
   return {
-    async evaluate(userId: string | null): Promise<void> {
+    async evaluate({ userId, role }: IntroTourIdentity): Promise<void> {
       const requestRevision = ++revision;
 
-      if (!userId) {
+      if (!userId || role !== "buyer") {
         if (!disposed) onDecision({ userId: null, visible: false });
         return;
       }

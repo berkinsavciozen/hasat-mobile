@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase/client";
@@ -19,7 +26,11 @@ import { BrandLogo } from "@/components/hasat/BrandLogo";
  */
 function translateAuthError(e: Error): string {
   const m = (e?.message || "").toLowerCase();
-  if (m.includes("expired") || (m.includes("invalid") && m.includes("token")) || m.includes("otp")) {
+  if (
+    m.includes("expired") ||
+    (m.includes("invalid") && m.includes("token")) ||
+    m.includes("otp")
+  ) {
     return "Kod hatalı veya süresi dolmuş. Tekrar deneyin.";
   }
   if (m.includes("rate") || m.includes("too many") || m.includes("limit")) {
@@ -122,7 +133,8 @@ export default function LoginScreen() {
   };
 
   const handleOtpKey = (i: number, key: string) => {
-    if (key === "Backspace" && !otp[i] && i > 0) inputsRef.current[i - 1]?.focus();
+    if (key === "Backspace" && !otp[i] && i > 0)
+      inputsRef.current[i - 1]?.focus();
   };
 
   const verify = async () => {
@@ -145,7 +157,7 @@ export default function LoginScreen() {
       if (profileErr) throw profileErr;
 
       const role = profile.role === "buyer" ? "buyer" : "farmer";
-      setRole(role);
+      setRole(role, data.user.id);
       updateUser({
         id: data.user.id,
         name: profile.name ?? undefined,
@@ -175,14 +187,21 @@ export default function LoginScreen() {
             üzerinden geçiyor — frozen kaynak dosyadaki bir kusur, path geometrisi
             değiştirilemediği için burada kendi dikey spacing'imizle birleştirdik. */}
         <View className="mb-10 items-center">
-          <BrandLogo variant="monogram" tone="dark" height={48} style={{ marginBottom: 10 }} />
+          <BrandLogo
+            variant="monogram"
+            tone="dark"
+            height={48}
+            style={{ marginBottom: 10 }}
+          />
           <BrandLogo variant="wordmark" tone="dark" height={30} />
         </View>
 
         <View className="w-full max-w-sm">
           {step === "phone" ? (
             <>
-              <Text className="text-hmuted text-xs mb-2">Telefon Numaranız</Text>
+              <Text className="text-hmuted text-xs mb-2">
+                Telefon Numaranız
+              </Text>
               <View className="flex-row items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5">
                 <Text className="text-hwhite text-sm bg-white/10 rounded-md px-2 py-1">
                   🇹🇷 +90
@@ -201,7 +220,9 @@ export default function LoginScreen() {
                 disabled={phoneDigits.length !== 10 || sending}
                 onPress={sendOtp}
                 className="mt-6 w-full rounded-xl py-3 items-center bg-saffron disabled:opacity-40"
-                style={{ opacity: phoneDigits.length !== 10 || sending ? 0.4 : 1 }}
+                style={{
+                  opacity: phoneDigits.length !== 10 || sending ? 0.4 : 1,
+                }}
               >
                 {sending ? (
                   <ActivityIndicator color="#FDFAF5" />
@@ -214,7 +235,9 @@ export default function LoginScreen() {
             <>
               <View className="items-center mb-4">
                 <Text className="text-hmuted text-xs">+90 {phoneDigits}</Text>
-                <Text className="text-hwhite text-sm mt-1">6 haneli kodu girin</Text>
+                <Text className="text-hwhite text-sm mt-1">
+                  6 haneli kodu girin
+                </Text>
               </View>
               <View className="flex-row justify-between gap-1">
                 {otp.map((d, i) => (
@@ -242,17 +265,23 @@ export default function LoginScreen() {
                     // aynı content type autofill'in her zaman tetiklenmesini
                     // sağlıyor.
                     textContentType="oneTimeCode"
-                    autoComplete={Platform.OS === "android" ? "sms-otp" : undefined}
+                    autoComplete={
+                      Platform.OS === "android" ? "sms-otp" : undefined
+                    }
                     className="w-11 h-14 text-center rounded-lg border border-white/15 bg-white/5 text-hwhite text-xl"
                   />
                 ))}
               </View>
               <View className="mt-3 items-center">
                 {countdown > 0 ? (
-                  <Text className="text-hmuted text-xs">Tekrar gönder ({countdown}s)</Text>
+                  <Text className="text-hmuted text-xs">
+                    Tekrar gönder ({countdown}s)
+                  </Text>
                 ) : (
                   <Pressable onPress={resend}>
-                    <Text className="text-hwhite text-xs underline">Tekrar gönder</Text>
+                    <Text className="text-hwhite text-xs underline">
+                      Tekrar gönder
+                    </Text>
                   </Pressable>
                 )}
               </View>
@@ -269,11 +298,15 @@ export default function LoginScreen() {
                 )}
               </Pressable>
               <Pressable onPress={() => setStep("phone")} className="mt-3">
-                <Text className="text-hmuted text-xs text-center">← Numarayı değiştir</Text>
+                <Text className="text-hmuted text-xs text-center">
+                  ← Numarayı değiştir
+                </Text>
               </Pressable>
             </>
           )}
-          {error ? <Text className="text-hred text-xs mt-4 text-center">{error}</Text> : null}
+          {error ? (
+            <Text className="text-hred text-xs mt-4 text-center">{error}</Text>
+          ) : null}
         </View>
       </View>
     </KeyboardAvoidingScreen>

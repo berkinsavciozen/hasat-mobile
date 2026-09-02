@@ -1,40 +1,69 @@
 name: EAS TestFlight Build + Submit (iOS)
 
-# Yalnızca elle tetiklenir — otomatik tetikleyici (push/PR/schedule) YOK.
-# `eas-build-simulator.yml`'in kardeşi: aynı kota-koruma mantığı, farklı
-# profil. Bu workflow iOS Simulator DEĞİL, gerçek cihaza TestFlight
-# üzerinden kurulacak bir prodüksiyon-imzalı build üretir
-# (`eas.json` → `ios-testflight` profili, `distribution: "store"`).
-#
-# Kota koruması (bkz. hasat-vault TODO.md → "P23-M8-a"):
-# Expo'nun ücretsiz katmanı ayda 30 build'e izin veriyor (iOS için bunların
-# en fazla 15'i, bu iki workflow AYNI 15'lik havuzu paylaşıyor), kuyrukta
-# bekleme süresi 90 dakikayı aşabiliyor, ve her BAŞARISIZ deneme de
-# kotadan düşüyor. Bu yüzden bu workflow da yalnızca elle, `app.json` ve
-# Apple kimlik bilgileri (bundle ID kaydı + Push Notifications capability +
-# APNs anahtarı EAS'a yüklü) hazırken çalıştırılmalıdır. (Submit adımı bu
-# kotaya dahil değil — yalnızca build'ler sayılıyor.)
-#
-# P23-M8-c: build + submit artık AYNI iş akışında. App Store Connect API
-# Key EAS'a kayıtlı (Team Keys, Admin erişim, Key ID `TGL8Z9MNTT`) —
-# `eas submit --non-interactive` bu sayede Apple kimlik doğrulaması
-# istemeden çalışıyor (Berkin'in terminalinde doğrulandı). `eas.json` →
-# `submit.ios-testflight.ios.ascAppId` (`6798678884`, App Store Connect'teki
-# Hasat-AI'ın Apple ID'si) dolduruldu — non-interactive submit'in uygulamayı
-# bundle ID'den aramaya çalışıp Apple'a etkileşimli sorup takılmaması için
-# gerekli. Önceki sürümde submit ayrı, tek seferlik bir terminal adımıydı;
-# artık aynı "Run workflow" tetiklemesiyle build biter bitmez submit ediliyor.
-
+# TestFlight is a release operation, not PR validation. It is manual-only and
+# requires both an explicit repository ref and its expected full commit SHA.
 on:
   workflow_dispatch:
+    inputs:
+      release_ref:
+        description: "Repository branch, tag, or commit to release"
+        required: true
+        type: string
+      expected_sha:
+        description: "Expected full 40-character commit SHA for release_ref"
+        required: true
+        type: string
+      latest_asc_build_number:
+        description: "Latest iOS build number already present in App Store Connect"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hasat-mobile-testflight-release
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   build-and-submit-testflight:
     name: iOS TestFlight Build + Submit
     runs-on: ubuntu-latest
+    env:
+      EAS_PROFILE: ios-testflight
     steps:
-      - name: Repo checkout
+      - name: Seçilen ref'i checkout et
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          fetch-depth: 0
+
+      - name: Release kaynağını doğrula
+        id: release_source
+        env:
+          RELEASE_REF: ${{ inputs.release_ref }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REPOSITORY" != "berkinsavciozen/hasat-mobile" ]; then
+            echo "Refusing release: unexpected repository." >&2
+            exit 1
+          fi
+          if ! printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Refusing release: expected_sha must be a full lowercase commit SHA." >&2
+            exit 1
+          fi
+          RESOLVED_SHA="$(git rev-parse HEAD)"
+          if [ "$RESOLVED_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Refusing release: selected ref does not resolve to expected_sha." >&2
+            exit 1
+          fi
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Selected ref: $RELEASE_REF"
+          echo "Full commit SHA: $RESOLVED_SHA"
+          echo "EAS profile: $EAS_PROFILE"
+          echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Node.js kurulumu
         uses: actions/setup-node@v4
@@ -52,52 +81,72 @@ jobs:
       - name: Bağımlılıkları kur (npm ci)
         run: npm ci
 
-      - name: EAS TestFlight build (iOS, non-interactive)
+      - name: EAS uzak build numarası preflight
+        id: version_preflight
+        env:
+          LATEST_ASC_BUILD_NUMBER: ${{ inputs.latest_asc_build_number }}
         run: |
-          eas build --profile ios-testflight --platform ios --non-interactive --json > eas-build-output.json
-          cat eas-build-output.json
-
-      - name: EAS TestFlight submit (iOS, non-interactive)
-        run: |
-          eas submit --profile ios-testflight --platform ios --non-interactive --latest
-
-      - name: Artifact linkini özet sayfasına yaz
-        if: always()
-        run: |
-          ARTIFACT_URL=""
-          if [ -f eas-build-output.json ]; then
-            ARTIFACT_URL=$(node -e "
-              try {
-                const raw = require('fs').readFileSync('eas-build-output.json', 'utf8');
-                const data = JSON.parse(raw);
-                const build = Array.isArray(data) ? data[0] : data;
-                const url = build?.artifacts?.buildUrl
-                  || build?.artifacts?.applicationArchiveUrl
-                  || build?.buildDetailsPageUrl
-                  || build?.url
-                  || '';
-                console.log(url);
-              } catch (e) {
-                console.log('');
-              }
-            ")
+          set -euo pipefail
+          eas build:version:get --platform ios --profile "$EAS_PROFILE" --non-interactive --json > eas-version.json
+          REMOTE_BUILD_NUMBER="$(node -e "
+            const value = JSON.parse(require('fs').readFileSync('eas-version.json', 'utf8')).buildNumber;
+            if (!/^[0-9]+$/.test(String(value ?? ''))) process.exit(1);
+            process.stdout.write(String(value));
+          ")"
+          if ! printf '%s' "$LATEST_ASC_BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
+            echo "Preflight failed: latest App Store Connect build number must be a non-negative integer." >&2
+            exit 1
           fi
+          NEXT_BUILD_NUMBER=$((REMOTE_BUILD_NUMBER + 1))
+          if [ "$REMOTE_BUILD_NUMBER" -lt "$LATEST_ASC_BUILD_NUMBER" ]; then
+            echo "Preflight failed: EAS remote counter is behind App Store Connect." >&2
+            echo "Remediation: stop and explicitly synchronize the EAS remote version with the store before releasing." >&2
+            exit 1
+          fi
+          if [ "$NEXT_BUILD_NUMBER" -lt 3 ] || [ "$NEXT_BUILD_NUMBER" -le "$LATEST_ASC_BUILD_NUMBER" ]; then
+            echo "Preflight failed: autoIncrement would not produce an unused build number 3 or greater." >&2
+            echo "Remediation: stop and explicitly synchronize the EAS remote version with the store before releasing." >&2
+            exit 1
+          fi
+          APP_VERSION="$(node -p "require('./app.json').expo.version")"
+          echo "App version: $APP_VERSION"
+          echo "EAS remote iOS counter: $REMOTE_BUILD_NUMBER"
+          echo "Expected auto-incremented build: $NEXT_BUILD_NUMBER"
+          echo "Latest App Store Connect build (operator supplied): $LATEST_ASC_BUILD_NUMBER"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "remote_build_number=$REMOTE_BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "next_build_number=$NEXT_BUILD_NUMBER" >> "$GITHUB_OUTPUT"
 
+      - name: EAS TestFlight build + exact auto-submit
+        run: |
+          set -euo pipefail
+          eas build \
+            --profile "$EAS_PROFILE" \
+            --platform ios \
+            --auto-submit-with-profile "$EAS_PROFILE" \
+            --wait \
+            --non-interactive \
+            --json > eas-build-output.json
+
+      - name: Release özetini yaz
+        if: always()
+        env:
+          RELEASE_REF: ${{ inputs.release_ref }}
+          RESOLVED_SHA: ${{ steps.release_source.outputs.resolved_sha }}
+          APP_VERSION: ${{ steps.version_preflight.outputs.app_version }}
+          REMOTE_BUILD_NUMBER: ${{ steps.version_preflight.outputs.remote_build_number }}
+          NEXT_BUILD_NUMBER: ${{ steps.version_preflight.outputs.next_build_number }}
+        run: |
           {
-            echo '## 📱 EAS TestFlight Build + Submit (iOS)'
+            echo '## EAS TestFlight Build + Submit (iOS)'
             echo ''
-            if [ -n "$ARTIFACT_URL" ]; then
-              echo "**Build detay linki:** $ARTIFACT_URL"
-            else
-              echo '⚠️ Artifact linki `--json` çıktısından otomatik çıkarılamadı.'
-              echo ''
-              echo 'Expo panosunda Projects → hasat-mobile (proje ID: `bff1a47c-41d5-42fa-bddc-83320c079253`) → Builds sekmesinden en son build'"'"'i bul.'
-            fi
+            echo "- Repository: $GITHUB_REPOSITORY"
+            echo "- Selected ref: $RELEASE_REF"
+            echo "- Full commit SHA: $RESOLVED_SHA"
+            echo "- EAS profile: $EAS_PROFILE"
+            if [ -n "$APP_VERSION" ]; then echo "- App version: $APP_VERSION"; fi
+            if [ -n "$REMOTE_BUILD_NUMBER" ]; then echo "- Preflight remote counter: $REMOTE_BUILD_NUMBER"; fi
+            if [ -n "$NEXT_BUILD_NUMBER" ]; then echo "- Expected build number: $NEXT_BUILD_NUMBER"; fi
             echo ''
-            echo '**Submit:** Build biter bitmez aynı işte `eas submit --profile ios-testflight --non-interactive --latest` çalıştı — App Store Connect API Key (Team Keys, Key ID `TGL8Z9MNTT`) sayesinde etkileşimli Apple kimlik doğrulaması gerekmedi. Bu adım başarısız olduysa yukarıdaki "EAS TestFlight submit" step logunu kontrol et.'
-            echo ''
-            echo 'Submit kabul edilirse Apple tarafında işlenmesi (genelde birkaç dk – yarım saat) sürer, sonra TestFlight sekmesinde görünür; Berkin kendi hesabını internal tester olarak eklemeli (bkz. hasat-vault TODO.md → "P23-M8-a" adım adım liste).'
-            echo ''
-            echo '---'
-            echo '_Kota hatırlatması: ücretsiz katman ayda 30 build (iOS'"'"'de en fazla 15, `eas-build-simulator.yml` ile PAYLAŞILAN havuz) — başarısız denemeler de düşer, submit bu kotaya dahil değil. Bu workflow'"'"'u sadece gerçekten bir TestFlight build'"'"'ine ihtiyacın olduğunda çalıştır._'
+            echo 'Submission is coupled to this run with EAS build auto-submit; no latest-build lookup is used.'
           } >> "$GITHUB_STEP_SUMMARY"
