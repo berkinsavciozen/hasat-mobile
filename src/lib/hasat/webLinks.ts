@@ -22,9 +22,15 @@ export const WEB_APP_URL = "https://hasat.lovable.app";
 // henüz merge olmadıysa (paralel tur) kullanıcı normal `/login`'e düşer —
 // kötü bir çökme yok, mevcut davranışla aynı seviye.
 export async function openWebWithSession(path: string): Promise<void> {
+  // `getSession()` returns whatever is cached locally with no freshness
+  // guarantee — if the access token is close to expiry, the web side would
+  // receive a token that's already stale by the time it lands. Refresh
+  // first so the handoff always carries a token good for a full session.
+  // No active/refreshable session simply resolves to a null session here
+  // (same as `getSession()` would), falling through to the plain-URL path.
   const {
     data: { session },
-  } = await supabase.auth.getSession();
+  } = await supabase.auth.refreshSession();
   if (session?.access_token && session?.refresh_token) {
     const at = encodeURIComponent(session.access_token);
     const rt = encodeURIComponent(session.refresh_token);
