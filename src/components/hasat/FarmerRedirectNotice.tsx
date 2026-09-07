@@ -8,7 +8,11 @@
 // Ver), src/components/hasat/CropRequestSheet.tsx (Talep Et). Tarif
 // okuma/kaydetme çiftçiye KAPANMADI — bu bileşen o akışlarda kullanılmıyor.
 import { View, Text, Pressable, Linking } from "react-native";
-import { openWebWithSession } from "@/lib/hasat/webLinks";
+import { openWebWithSession, WEB_APP_URL } from "@/lib/hasat/webLinks";
+
+// Display form of WEB_APP_URL (no protocol) — keeps this text in sync with
+// the single WEB_APP_URL source instead of a second hardcoded domain.
+const WEB_APP_HOST = WEB_APP_URL.replace(/^https?:\/\//, "");
 
 // Web'deki `HASAT_WHATSAPP_NUMBER` (hasat-d2c-marketplace/src/lib/hasat/
 // constants.ts) ile aynı değer — iki repo arasında paylaşılan bir kod yolu
@@ -24,7 +28,7 @@ export function FarmerRedirectNotice() {
         Bu uygulama alıcılar için tasarlandı.
       </Text>
       <Text className="mt-2 text-center text-sm text-hmuted">
-        Çiftçi işlemlerini web'den (hasat.lovable.app) veya WhatsApp'tan Hasat AI asistanıyla
+        Çiftçi işlemlerini web'den ({WEB_APP_HOST}) veya WhatsApp'tan Hasat AI asistanıyla
         yapabilirsin.
       </Text>
       <View className="mt-6 w-full gap-2">
