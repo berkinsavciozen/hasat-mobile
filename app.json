@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.hasat.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:hasat-ai.com"]
     },
     "android": {
       "package": "com.hasat.app",
