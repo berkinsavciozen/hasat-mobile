@@ -14,7 +14,7 @@ import { useHasatMobileSession } from "@/lib/store/session";
 import { useProfile, isEffectivelyPremium } from "@/lib/hasat/profile";
 import { DeleteAccountModal } from "@/components/hasat/DeleteAccountModal";
 import { unregisterPushTokenOnSignOut } from "@/lib/native/push";
-import { markExpectedSignOut } from "@/lib/hasat/sessionGuard";
+import { markExpectedSignOut, invalidateProfileSession } from "@/lib/hasat/sessionGuard";
 import { AppIcon } from "@/components/hasat/AppIcon";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -36,29 +36,9 @@ export default function ProfileScreen() {
   const premium = isEffectivelyPremium(profile);
   const buyerType = profile?.buyer_type ?? "diger";
 
-  // P23-M8-b kök neden düzeltmesi (S33 adım 46, hesap silme sonrası oturum
-  // temizlenmiyordu): eski kod hem normal çıkışta hem hesap silmede
-  // `supabase.auth.signOut()`'u kendi `clear()`/`router.replace()`'iyle
-  // birlikte çağırıyordu. Hesap silme yolunda bu, `auth.users.banned_until
-  // = 'infinity'` olduğu için sunucuya giden `/logout` isteğinin
-  // reddedilebilmesi riskini taşıyordu — `catch {}` hatayı yutsa da
-  // Supabase'in kendi oturum kaydı (LargeSecureStore), TanStack Query
-  // cache'i ve offline sqlite önbelleği DOKUNULMADAN kalabiliyordu, ekranda
-  // önbellekteki "Silinmiş Kullanıcı" profili görünmeye devam ediyordu.
-  // Düzeltme, iki parça:
-  // (1) Temizlik + yönlendirme merkezi `sessionGuard.ts`'e taşındı —
-  //     `SIGNED_OUT` event'ini dinleyip zustand + query cache + offline
-  //     sqlite + login'e yönlendirmeyi TEK yerden yapıyor; hem manuel
-  //     çıkışta hem hesap silmede hem de (bir oturum bir şekilde canlı
-  //     kalıp banned_until nedeniyle bir istek gerçekten reddedildiğinde)
-  //     otomatik olarak aynı yoldan geçiyor.
-  // (2) Yalnızca hesap silme yolunda `scope: "local"` — hesap artık banned
-  //     olduğu için sunucuya `/logout` isteği atmak gereksiz bir ağ
-  //     bağımlılığı + red riski taşıyor (item 1'deki ağ-hatası/gerçek-red
-  //     ayrımının simetriği). Normal çıkışta `scope` varsayılan (`global`)
-  //     bırakıldı — kullanıcı bilerek çıkış yapıyor, refresh token'ının
-  //     sunucuda da geçersiz kılınması (diğer cihazlardan da çıkış) doğru
-  //     davranış, bunu değiştirmek görev kapsamının dışındaydı.
+  // Manual sign-out retains its existing global revocation and push cleanup.
+  // Confirmed deletion uses the shared deterministic local cleanup, even when
+  // the deleted account can no longer reach the auth logout endpoint.
   const signOut = async () => {
     await unregisterPushTokenOnSignOut();
     markExpectedSignOut();
@@ -68,8 +48,7 @@ export default function ProfileScreen() {
   const afterAccountDeleted = async () => {
     // device_tokens satırı hesap silme RPC'sinde zaten kaldırıldı —
     // unregisterPushTokenOnSignOut() burada gereksiz (0 satır etkiler).
-    markExpectedSignOut();
-    await supabase.auth.signOut({ scope: "local" });
+    await invalidateProfileSession();
   };
 
   return (

@@ -1,10 +1,10 @@
 import "../src/styles/global.css";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { View, ActivityIndicator, AppState } from "react-native";
+import { AppState } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
@@ -13,8 +13,7 @@ import {
   attachNotificationTapRouting,
 } from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
-import { useHasatMobileSession } from "@/lib/store/session";
-import { BrandLogo } from "@/components/hasat/BrandLogo";
+import { SessionBoundary } from "@/components/hasat/SessionBoundary";
 
 // Final logo geldi (Hasat OS Milestone 3 — Brand Identity Freeze, W2/M1).
 // Native splash (app.json → "expo-splash-screen" plugin) artık `image` de
@@ -23,8 +22,6 @@ import { BrandLogo } from "@/components/hasat/BrandLogo";
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [bootstrapped, setBootstrapped] = useState(false);
-
   // P23-M8-b-2 — kök neden düzeltmesi: gotrue-js'in kendi belgelenmiş
   // davranışı ("On non-browser platforms the refresh process works
   // *continuously* in the background... You should hook into your
@@ -68,82 +65,21 @@ export default function RootLayout() {
     installSessionGuard();
   }, []);
 
-  useEffect(() => {
-    // Supabase, storage adaptöründen (LargeSecureStore) oturumu okuyup
-    // hydrate ediyor mu diye ilk kontrol — uygulama kapatılıp açıldığında
-    // oturumun cihazda kalıcı olduğunu doğrulayan adım budur (bkz. M5-a "E").
-    //
-    // 11. tur kök neden düzeltmesi: `role`, zustand+SecureStore'da kalıcı
-    // (bkz. session.ts) ama yalnızca login.tsx'in `verify()` adımında (tam
-    // OTP girişi) DB'den yazılıyordu. Soğuk açılışta mevcut bir oturum
-    // bulunduğunda rol hiç yeniden sorgulanmıyordu — cihazda daha önce
-    // herhangi bir noktada kalmış (muhtemelen eski/yanlış) bir `role`
-    // değeri, kullanıcı tekrar `/login`'den geçmediği sürece sessizce
-    // kullanılmaya devam ediyordu (FarmerRedirectNotice'ın yanlışlıkla
-    // devreye girip alıcı akışlarını ezmesinin en olası açıklaması buydu).
-    // Düzeltme: session varsa `profiles.role`'ü tazece çek — login.tsx'in
-    // `verify()`'indeki aynı sorgu deseni (kural #106, yeni bir sorgu icat
-    // edilmedi) — ve store'a yaz. Session yoksa (misafir/çıkış yapılmış)
-    // dokunma, store'un kendi "buyer" varsayılanı kalır.
-    // Persist edilmiş önceki rol, bu bootstrap sorgusu başarıyla aynı
-    // kullanıcı için çözülene kadar yetkili kabul edilmez.
-    useHasatMobileSession.getState().clearRoleResolution();
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        if (!session) return;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-        if (profile) {
-          useHasatMobileSession
-            .getState()
-            .setRole(
-              profile.role === "buyer" ? "buyer" : "farmer",
-              session.user.id,
-            );
-        }
-      })
-      .finally(() => setBootstrapped(true));
-  }, []);
-
-  // İlk JS frame'i (aşağıdaki marka ekranı) commit olduktan hemen sonra
+  // İlk JS frame'i (SessionBoundary marka ekranı) commit olduktan hemen sonra
   // native splash'ı kapat — kullanıcı native (salt renk) splash'tan JS'in
   // marka ekranına akışı boş/beyaz bir kare görmeden geçer.
   useEffect(() => {
     void SplashScreen.hideAsync();
   }, []);
 
-  if (!bootstrapped) {
-    return (
-      <View className="flex-1 items-center justify-center bg-dark">
-        {/* login.tsx'teki aynı desen: lockup değil, monogram+wordmark ayrı ayrı
-            (bkz. login.tsx'teki not — lockup'ın ayırıcı çizgisi wordmark'ın son
-            harfinin üzerinden geçiyor, frozen kaynak dosya kusuru). */}
-        <BrandLogo
-          variant="monogram"
-          tone="dark"
-          height={44}
-          style={{ marginBottom: 10 }}
-        />
-        <BrandLogo
-          variant="wordmark"
-          tone="dark"
-          height={26}
-          style={{ marginBottom: 24 }}
-        />
-        <ActivityIndicator color="#1F6E82" />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack
+          screenOptions={{ headerShown: false }}
+          screenLayout={({ children }) => <SessionBoundary>{children}</SessionBoundary>}
+        />
       </QueryClientProvider>
     </SafeAreaProvider>
   );

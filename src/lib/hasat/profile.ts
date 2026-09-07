@@ -1,3 +1,4 @@
+import { invalidateProfileSession } from "@/lib/hasat/sessionGuard";
 // P23-M7-d — profil ekranı. Web'in `useProfile`/`isEffectivelyPremium`
 // (hasat-d2c-marketplace/src/lib/hasat/queries.ts) ile birebir aynı sorgu ve
 // mantık — yeniden yazılmadı, kopyalandı (bkz. format.ts başlığındaki aynı
@@ -10,6 +11,7 @@ export interface ProfileRow {
   name: string | null;
   city: string | null;
   role: string;
+  deleted_at: string | null;
   phone: string | null;
   tier: string | null;
   buyer_type: string | null;
@@ -33,10 +35,14 @@ export function useProfile() {
       if (!uid) return null;
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, city, role, phone, tier, buyer_type, premium_until")
+        .select("id, name, city, role, deleted_at, phone, tier, buyer_type, premium_until")
         .eq("id", uid)
         .maybeSingle();
       if (error) throw error;
+      if (!data || data.deleted_at != null) {
+        await invalidateProfileSession();
+        return null;
+      }
       return (data ?? null) as ProfileRow | null;
     },
   });

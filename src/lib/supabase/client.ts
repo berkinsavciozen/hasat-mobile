@@ -10,6 +10,17 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   );
 }
 
+const authStorage = new LargeSecureStore();
+
+// Supabase default storage key; keep the existing key so installed sessions migrate unchanged.
+const authStorageKey = `sb-${new URL(SUPABASE_URL).hostname.split(".")[0]}-auth-token`;
+
+export async function removeLocalAuthStorage(): Promise<void> {
+  await authStorage.removeItem(authStorageKey);
+  await authStorage.removeItem(`${authStorageKey}-user`);
+  await authStorage.removeItem(`${authStorageKey}-code-verifier`);
+}
+
 export const supabase = createHasatSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  storage: new LargeSecureStore(),
+  storage: authStorage,
 });
