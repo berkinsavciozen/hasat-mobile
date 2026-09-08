@@ -89,6 +89,16 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
           cached_at INTEGER NOT NULL
         );
       `);
+      // Device-local cache upgrade only; no Supabase/schema migration.
+      const version = await db.getFirstAsync<{ user_version: number }>("PRAGMA user_version");
+      if ((version?.user_version ?? 0) < 1) {
+        await db.withTransactionAsync(async () => {
+          await db.execAsync("ALTER TABLE cached_recipes ADD COLUMN recipe_facts TEXT");
+          // Old details lack T3/T4 fields: keep offline content, request a fresh prefetch.
+          await db.runAsync("DELETE FROM cached_recipe_detail_meta");
+          await db.execAsync("PRAGMA user_version = 1");
+        });
+      }
       return db;
     });
   }

@@ -1,3 +1,5 @@
+import type { RecipeFacts } from "./recipeFacts";
+
 // Web'in `src/lib/hasat/recipes.ts`'teki tip tanımlarıyla birebir aynı satır
 // kümesi (mobil offline cache'in de aynı şekle ihtiyacı olduğu için ayrı bir
 // dosyaya çıkarıldı — `recipes.ts` ve `offline/recipeCache.ts` ikisi de
@@ -19,7 +21,7 @@ export interface RecipeListItem {
   isRepresentativePhoto: boolean;
 }
 
-export type RecipeDetail = RecipeListItem;
+export type RecipeDetail = RecipeListItem & RecipeFacts;
 
 export interface RecipeStepRow {
   id: string;
