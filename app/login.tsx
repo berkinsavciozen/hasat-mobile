@@ -1,3 +1,4 @@
+import { invalidateProfileSession } from "@/lib/hasat/sessionGuard";
 import { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -155,6 +156,12 @@ export default function LoginScreen() {
         .eq("id", data.user.id)
         .single();
       if (profileErr) throw profileErr;
+
+      if (profile.deleted_at != null) {
+        await invalidateProfileSession();
+        throw new Error("Bu hesap artık aktif değil.");
+      }
+      if (profile.deleted_at !== null) throw new Error("Profil doğrulanamadı. Tekrar dene.");
 
       const role = profile.role === "buyer" ? "buyer" : "farmer";
       setRole(role, data.user.id);

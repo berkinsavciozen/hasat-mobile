@@ -19,10 +19,10 @@
 // tekrar eden bir temizlik iki yerde ayrı ayrı sürüklenmesin.
 import { router } from "expo-router";
 import * as Network from "expo-network";
-import { supabase } from "@/lib/supabase/client";
+import { supabase, removeLocalAuthStorage } from "@/lib/supabase/client";
 import { queryClient } from "@/lib/query/client";
 import { clearRecipeCache } from "@/lib/offline/db";
-import { useHasatMobileSession } from "@/lib/store/session";
+import { useHasatMobileSession, flushSessionStorage } from "@/lib/store/session";
 
 let expected = false;
 let installed = false;
@@ -40,6 +40,38 @@ export function takePendingSessionMessage(): string | null {
   const m = pendingMessage;
   pendingMessage = null;
   return m;
+}
+
+/** Shared cleanup also runs directly for confirmed inactive profiles: no network heuristic. */
+export async function clearSessionCaches(): Promise<void> {
+  useHasatMobileSession.getState().clear();
+  await queryClient.cancelQueries();
+  queryClient.clear();
+  await Promise.all([clearRecipeCache(), flushSessionStorage()]);
+}
+
+let invalidating: Promise<void> | null = null;
+export function invalidateProfileSession(): Promise<void> {
+  if (invalidating) return invalidating;
+  invalidating = (async () => {
+    useHasatMobileSession.getState().clear();
+    try {
+      await supabase.auth.stopAutoRefresh();
+      // Remove the local JWT before SDK signOut: no logout/refresh network dependency.
+      // SDK then clears its remaining state and emits SIGNED_OUT through its public API.
+      await removeLocalAuthStorage();
+      markExpectedSignOut();
+      await supabase.auth.signOut({ scope: "local" });
+    } finally {
+      expected = false;
+      try {
+        await clearSessionCaches();
+      } finally {
+        router.replace("/login");
+      }
+    }
+  })().finally(() => { invalidating = null; });
+  return invalidating;
 }
 
 /** `_layout.tsx`'ten uygulama açılışında bir kez çağrılır.
@@ -77,13 +109,15 @@ export function installSessionGuard(): void {
           // kadar askıda bırakmak daha kötü bir kullanıcı deneyimi olurdu.
         }
       }
-      useHasatMobileSession.getState().clear();
-      queryClient.clear();
-      void clearRecipeCache();
-      if (!wasExpected) {
-        pendingMessage = "Oturumun sona erdi. Lütfen tekrar giriş yap.";
+      if (invalidating) return; // Explicit invalidation owns cleanup; its boundary redirects.
+      try {
+        await clearSessionCaches();
+      } finally {
+        if (!wasExpected) {
+          pendingMessage = "Oturumun sona erdi. Lütfen tekrar giriş yap.";
+        }
+        router.replace("/login");
       }
-      router.replace("/login");
-    })();
+    })().catch(() => { /* Local cleanup failure must not restore protected UI. */ });
   });
 }

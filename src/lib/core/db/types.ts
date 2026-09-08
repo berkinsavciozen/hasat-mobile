@@ -1995,6 +1995,7 @@ export type Database = {
           buyer_type: Database["public"]["Enums"]["company_type"] | null
           city: string | null
           created_at: string
+          deleted_at: string | null
           iban: string | null
           id: string
           name: string | null
@@ -2012,6 +2013,7 @@ export type Database = {
           buyer_type?: Database["public"]["Enums"]["company_type"] | null
           city?: string | null
           created_at?: string
+          deleted_at?: string | null
           iban?: string | null
           id: string
           name?: string | null
@@ -2029,6 +2031,7 @@ export type Database = {
           buyer_type?: Database["public"]["Enums"]["company_type"] | null
           city?: string | null
           created_at?: string
+          deleted_at?: string | null
           iban?: string | null
           id?: string
           name?: string | null
