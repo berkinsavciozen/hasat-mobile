@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Image,
   Share,
+  AccessibilityInfo,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
@@ -17,6 +18,10 @@ import {
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { AppIcon } from "@/components/hasat/AppIcon";
 import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
+import {
+  RecipeAllergenPanel,
+  RecipeNutritionPanel,
+} from "@/components/hasat/RecipeFactsPanels";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import {
   formatIngredientName,
@@ -27,6 +32,10 @@ import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
 import { useIsRecipeSaved, useToggleRecipeSave } from "@/lib/hasat/favorites";
+import {
+  buildAllergenPresentation,
+  buildNutritionPresentation,
+} from "@/lib/hasat/recipeDetailPresentation";
 import {
   useRecipeDetail,
   useRecipeAvailability,
@@ -64,7 +73,21 @@ export default function RecipeDetailScreen() {
 
   const recipe = data?.recipe;
   const [servings, setServings] = useState<number | null>(null);
-  const effectiveServings = servings ?? recipe?.servings ?? 4;
+  const baseServings =
+    typeof recipe?.servings === "number" &&
+    Number.isFinite(recipe.servings) &&
+    recipe.servings > 0
+      ? recipe.servings
+      : 4;
+  const effectiveServings = servings ?? baseServings;
+  const nutritionModel = useMemo(
+    () => (recipe ? buildNutritionPresentation(recipe) : null),
+    [recipe],
+  );
+  const allergenModel = useMemo(
+    () => (recipe ? buildAllergenPresentation(recipe) : null),
+    [recipe],
+  );
 
   // Kendi taslağında ölçümleme yok: `recipe_views` public korpusun hunisini
   // ölçüyor (v_kpi_recipe_funnel), kişisel defter o huniye girmiyor. Malzeme
@@ -176,6 +199,18 @@ export default function RecipeDetailScreen() {
     ...(isOwn ? { own: "1" } : {}),
     ...(targetStep != null ? { step: String(targetStep) } : {}),
   });
+
+  const changeServings = (delta: number) => {
+    const next = Math.max(1, effectiveServings + delta);
+    setServings(next);
+    if (next !== effectiveServings) {
+      AccessibilityInfo.announceForAccessibility(
+        isOwn
+          ? `${next} porsiyon seçildi. Malzeme miktarları güncellendi.`
+          : `${next} porsiyon seçildi. Malzeme miktarları ve toplam besin değerleri güncellendi.`,
+      );
+    }
+  };
 
   return (
     <ScrollView
@@ -290,29 +325,37 @@ export default function RecipeDetailScreen() {
       </View>
 
       <View className="px-5">
-        <View className="flex-row items-center justify-between">
+        {!isOwn && (
+          <>
+            <ServingControl
+              servings={effectiveServings}
+              onDecrease={() => changeServings(-1)}
+              onIncrease={() => changeServings(1)}
+            />
+            {nutritionModel && (
+              <RecipeNutritionPanel
+                model={nutritionModel}
+                servings={effectiveServings}
+              />
+            )}
+            {allergenModel && <RecipeAllergenPanel model={allergenModel} />}
+          </>
+        )}
+
+        <View
+          className={`${!isOwn ? "mt-6" : ""} flex-row items-center justify-between`}
+        >
           <Text className="text-xs font-medium uppercase tracking-wider text-hmuted">
             Malzemeler
           </Text>
-          <View className="flex-row items-center gap-3">
-            <Pressable
-              onPress={() =>
-                setServings((s) => Math.max(1, (s ?? r.servings ?? 4) - 1))
-              }
-              className="h-11 w-11 items-center justify-center rounded-xl border border-white/15"
-            >
-              <Text className="text-hwhite">−</Text>
-            </Pressable>
-            <Text className="min-w-[70px] text-center text-sm font-medium text-hwhite">
-              {effectiveServings} porsiyon
-            </Text>
-            <Pressable
-              onPress={() => setServings((s) => (s ?? r.servings ?? 4) + 1)}
-              className="h-11 w-11 items-center justify-center rounded-xl border border-white/15"
-            >
-              <Text className="text-hwhite">+</Text>
-            </Pressable>
-          </View>
+          {isOwn && (
+            <ServingControl
+              servings={effectiveServings}
+              onDecrease={() => changeServings(-1)}
+              onIncrease={() => changeServings(1)}
+              compact
+            />
+          )}
         </View>
 
         <View className="mt-3">
@@ -404,6 +447,88 @@ export default function RecipeDetailScreen() {
         </Text>
       </View>
     </ScrollView>
+  );
+}
+
+function ServingControl({
+  servings,
+  onDecrease,
+  onIncrease,
+  compact = false,
+}: {
+  servings: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  compact?: boolean;
+}) {
+  const atMinimum = servings <= 1;
+  return (
+    <View
+      className={`${compact ? "" : "mb-1"} flex-row flex-wrap items-center justify-between gap-3`}
+    >
+      {!compact && (
+        <Text
+          accessibilityRole="header"
+          className="text-xs font-medium uppercase tracking-wider text-hmuted"
+        >
+          Porsiyon
+        </Text>
+      )}
+      <View className="flex-row items-center gap-3">
+        <Pressable
+          onPress={onDecrease}
+          disabled={atMinimum}
+          accessibilityRole="button"
+          accessibilityLabel="Porsiyonu azalt"
+          accessibilityHint={
+            compact
+              ? "Malzeme miktarlarını azaltır"
+              : "Malzeme miktarlarını ve toplam besin değerlerini azaltır"
+          }
+          accessibilityState={{ disabled: atMinimum }}
+          className={`h-11 w-11 items-center justify-center rounded-xl border border-white/15 ${
+            atMinimum ? "opacity-40" : ""
+          }`}
+        >
+          <Text className="text-xl text-hwhite">−</Text>
+        </Pressable>
+        <Text
+          className="min-w-[76px] text-center text-sm font-medium text-hwhite"
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={`${servings} porsiyon seçili`}
+          accessibilityRole="adjustable"
+          accessibilityValue={{
+            min: 1,
+            now: servings,
+            text: `${servings} porsiyon`,
+          }}
+          accessibilityActions={[
+            { name: "increment", label: "Porsiyonu artır" },
+            { name: "decrement", label: "Porsiyonu azalt" },
+          ]}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === "increment") onIncrease();
+            if (event.nativeEvent.actionName === "decrement" && !atMinimum)
+              onDecrease();
+          }}
+        >
+          {servings} porsiyon
+        </Text>
+        <Pressable
+          onPress={onIncrease}
+          accessibilityRole="button"
+          accessibilityLabel="Porsiyonu artır"
+          accessibilityHint={
+            compact
+              ? "Malzeme miktarlarını artırır"
+              : "Malzeme miktarlarını ve toplam besin değerlerini artırır"
+          }
+          className="h-11 w-11 items-center justify-center rounded-xl border border-white/15"
+        >
+          <Text className="text-xl text-hwhite">+</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 

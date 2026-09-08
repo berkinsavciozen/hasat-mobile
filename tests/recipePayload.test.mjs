@@ -27,7 +27,10 @@ for (const [state, facts] of Object.entries(nutritionFixtures)) {
     row = recipeRow(facts); requests.length = 0;
     const detail = await fetchDetail(row.slug);
     assert.deepEqual(mapRecipeFacts(detail.recipe), facts);
-    assert.equal(getNutritionState(detail.recipe), state);
+    assert.equal(
+      getNutritionState(detail.recipe),
+      state.startsWith("partial") ? "partial" : state,
+    );
     const query = requests.find(url => url.pathname.endsWith("/recipes"));
     const selected = query.searchParams.get("select").split(",");
     for (const key of Object.keys(unavailable)) assert.ok(selected.includes(key), key);

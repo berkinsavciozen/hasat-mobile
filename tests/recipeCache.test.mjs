@@ -55,7 +55,11 @@ for (const [state, facts] of Object.entries({ ...nutritionFixtures, ...allergenF
     assert.deepEqual(mapRecipeFacts(found.recipe), facts);
     assert.deepEqual(found.steps, steps);
     assert.deepEqual(found.ingredients, ingredients);
-    if (state in nutritionFixtures) assert.equal(getNutritionState(found.recipe), state);
+    if (state in nutritionFixtures)
+      assert.equal(
+        getNutritionState(found.recipe),
+        state.startsWith("partial") ? "partial" : state,
+      );
     if (state in allergenFixtures) assert.equal(getReviewedAllergens(found.recipe).reviewState, state);
   });
 }
