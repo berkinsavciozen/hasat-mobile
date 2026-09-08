@@ -1,3 +1,5 @@
+import { mapRecipeFacts } from "../hasat/recipeFacts";
+import { deserializeRecipeFacts, serializeRecipeFacts } from "./recipeFactsCache";
 import { getDb } from "./db";
 import type { RecipeListItem, RecipeDetail, RecipeStepRow, RecipeIngredientRow } from "@/lib/hasat/types";
 
@@ -19,7 +21,8 @@ function toRow(r: RecipeListItem) {
   };
 }
 
-function fromRow(row: any): RecipeListItem {
+function fromRow(row: any): RecipeDetail {
+  const facts = deserializeRecipeFacts(row.recipe_facts);
   return {
     id: row.id,
     slug: row.slug,
@@ -35,6 +38,7 @@ function fromRow(row: any): RecipeListItem {
     cuisine: row.cuisine,
     diet_tags: JSON.parse(row.diet_tags ?? "[]"),
     cover_photo_url: null,
+    ...facts,
   };
 }
 
@@ -45,14 +49,19 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
   const db = await getDb();
   const now = Date.now();
   await db.withTransactionAsync(async () => {
+    // List queries do not contain detail facts. Preserve them across list refreshes.
+    const previous = await db.getAllAsync<{ id: string; recipe_facts: string | null }>(
+      "SELECT id, recipe_facts FROM cached_recipes",
+    );
+    const factsById = new Map(previous.map((row) => [row.id, row.recipe_facts]));
     await db.runAsync("DELETE FROM cached_recipes");
     for (const item of items) {
       const row = toRow(item);
       await db.runAsync(
         `INSERT INTO cached_recipes
           (id, slug, title, description, display_photo_url, is_representative_photo,
-           servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at, recipe_facts)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id,
           row.slug,
@@ -68,6 +77,7 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
           row.cuisine,
           row.diet_tags,
           now,
+          factsById.get(item.id) ?? null,
         ],
       );
     }
@@ -120,7 +130,7 @@ export async function getCachedRecipeList(): Promise<{
 
 export async function getCachedRecipeBySlug(
   slug: string,
-): Promise<{ recipe: RecipeListItem; cachedAt: number } | null> {
+): Promise<{ recipe: RecipeDetail; cachedAt: number } | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<any>("SELECT * FROM cached_recipes WHERE slug = ?", [slug]);
   if (!row) return null;
@@ -141,8 +151,8 @@ export async function cacheRecipeDetail(
     await db.runAsync(
       `INSERT INTO cached_recipes
         (id, slug, title, description, display_photo_url, is_representative_photo,
-         servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at, recipe_facts)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          slug=excluded.slug, title=excluded.title, description=excluded.description,
          display_photo_url=excluded.display_photo_url,
@@ -150,7 +160,8 @@ export async function cacheRecipeDetail(
          servings=excluded.servings, prep_minutes=excluded.prep_minutes,
          cook_minutes=excluded.cook_minutes, rest_minutes=excluded.rest_minutes,
          difficulty=excluded.difficulty, cuisine=excluded.cuisine,
-         diet_tags=excluded.diet_tags, cached_at=excluded.cached_at`,
+         diet_tags=excluded.diet_tags, cached_at=excluded.cached_at,
+         recipe_facts=excluded.recipe_facts`,
       [
         row.id,
         row.slug,
@@ -166,6 +177,7 @@ export async function cacheRecipeDetail(
         row.cuisine,
         row.diet_tags,
         now,
+        serializeRecipeFacts(mapRecipeFacts(recipe)),
       ],
     );
     await db.runAsync("DELETE FROM cached_recipe_steps WHERE recipe_id = ?", [recipe.id]);

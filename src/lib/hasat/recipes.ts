@@ -1,3 +1,4 @@
+import { RECIPE_FACT_COLUMNS, mapRecipeFacts } from "./recipeFacts";
 // Web'in `src/lib/hasat/recipes.ts`'inin mobil karşılığı — aynı sorgular,
 // aynı RPC'ler, aynı şema (bkz. hasat-vault/TODO.md kural #106: eşleştirme/
 // dönüşüm/alışveriş listesi mantığı DB'de yaşıyor, burada yeniden yazılmıyor,
@@ -41,6 +42,8 @@ export { DIFFICULTY_LABELS } from "@/lib/hasat/types";
 
 const RECIPE_LIST_COLUMNS =
   "id, slug, title, description, cover_photo_url, servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags";
+
+const RECIPE_DETAIL_COLUMNS = `${RECIPE_LIST_COLUMNS}, ${RECIPE_FACT_COLUMNS}` as const;
 
 /** Web'deki `attachCoverFallback`'in birebir aynısı — kapak fotoğrafı yoksa
  * (P23-M3 itibarıyla 18/18 NULL) ilk ana malzemenin crop görseline, o da
@@ -212,14 +215,14 @@ export function useRecipeList() {
   });
 }
 
-async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
+export async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
   recipe: RecipeDetail;
   steps: RecipeStepRow[];
   ingredients: RecipeIngredientRow[];
 } | null> {
   const { data: recipeRow, error: recipeErr } = await supabase
     .from("recipes")
-    .select(RECIPE_LIST_COLUMNS)
+    .select(RECIPE_DETAIL_COLUMNS)
     .eq("slug", slug)
     .eq("visibility", "public")
     .eq("status", "published")
@@ -243,9 +246,9 @@ async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
   if (stepErr) throw stepErr;
   if (ingErr) throw ingErr;
 
-  const [withCover] = await attachCoverFallback([recipeRow as any]);
+  const [withCover] = await attachCoverFallback([recipeRow]);
   return {
-    recipe: { ...(withCover as any), diet_tags: recipeRow.diet_tags ?? [] },
+    recipe: { ...withCover, ...mapRecipeFacts(recipeRow), diet_tags: recipeRow.diet_tags ?? [] },
     steps: (stepRows ?? []) as RecipeStepRow[],
     ingredients: (ingredientRows ?? []) as unknown as RecipeIngredientRow[],
   };
@@ -263,7 +266,7 @@ async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
  *      yani "kullanıcı importu asla public korpusa karışmaz" kuralının
  *      önbellek tarafındaki ihlali olurdu.
  */
-async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
+export async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
   recipe: RecipeDetail;
   steps: RecipeStepRow[];
   ingredients: RecipeIngredientRow[];
@@ -274,7 +277,7 @@ async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
 
   const { data: recipeRow, error: recipeErr } = await supabase
     .from("recipes")
-    .select(RECIPE_LIST_COLUMNS)
+    .select(RECIPE_DETAIL_COLUMNS)
     .eq("slug", slug)
     .eq("owner_id", uid)
     .maybeSingle();
@@ -299,7 +302,8 @@ async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
 
   return {
     recipe: {
-      ...(recipeRow as any),
+      ...recipeRow,
+      ...mapRecipeFacts(recipeRow),
       diet_tags: recipeRow.diet_tags ?? [],
       displayPhotoUrl: recipeRow.cover_photo_url ?? null,
       isRepresentativePhoto: false,
