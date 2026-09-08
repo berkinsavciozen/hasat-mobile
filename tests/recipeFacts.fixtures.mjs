@@ -16,6 +16,9 @@ const macros = {
 export const nutritionFixtures = {
   computed: { ...unavailable, ...macros, nutrition_source: "computed", nutrition_coverage_pct: 100 },
   partial: { ...unavailable, ...macros, nutrition_source: "partial", nutrition_coverage_pct: 53.25, nutrition_warnings: ["unmatched_ingredient"] },
+  partialLow: { ...unavailable, ...macros, nutrition_source: "partial", nutrition_coverage_pct: 0.4, nutrition_warnings: ["low_coverage"] },
+  partialMedium: { ...unavailable, ...macros, nutrition_source: "partial", nutrition_coverage_pct: 50.8 },
+  partial995: { ...unavailable, ...macros, nutrition_source: "partial", nutrition_coverage_pct: 99.5 },
   estimated: { ...unavailable, ...macros, nutrition_source: "estimated", nutrition_coverage_pct: 0, nutrition_warnings: ["estimated_quantity"] },
   unavailable,
 };
