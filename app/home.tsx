@@ -26,7 +26,6 @@ import {
   useRecipeList,
   useRecipeCoverage,
   totalRecipeMinutes,
-  activeRecipeMinutes,
   formatTotalMinutes,
   needsAdvanceStart,
   DIFFICULTY_LABELS,
@@ -54,6 +53,7 @@ import {
   activeFilterCount,
   type RecipeFilters,
 } from "@/components/hasat/RecipeFilterSheet";
+import { matchesRecipeFilters } from "@/lib/hasat/recipeListFilters";
 import { useUnreadCount } from "@/lib/hasat/notifications";
 import { AppIcon } from "@/components/hasat/AppIcon";
 import { supabase } from "@/lib/supabase/client";
@@ -95,7 +95,7 @@ export default function RecipeListScreen() {
   const favorites = useFavoriteRecipes();
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── F13-dar: süre/malzeme/diyet filtresi ──────────────────────────────────
+  // ── F13-dar + C4: süre/malzeme/diyet + alerjen/ekipman filtreleri ─────────
   const coverage = useRecipeCoverage();
   const [filters, setFilters] = useState<RecipeFilters>(EMPTY_RECIPE_FILTERS);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -218,18 +218,10 @@ export default function RecipeListScreen() {
         .some((value) => value!.toLocaleLowerCase("tr-TR").includes(needle))
     )
       return false;
-    if (filters.diet && !r.diet_tags.includes(filters.diet)) return false;
-    if (filters.duration) {
-      const mins = activeRecipeMinutes(r);
-      const max = filters.duration === "30" ? 30 : 60;
-      const prevMax = filters.duration === "30" ? 0 : 30;
-      if (!(mins > prevMax && mins <= max)) return false;
-    }
-    if (filters.onlyAvailable && !isOffline) {
-      const available = coverage.data?.get(r.id)?.available_count ?? 0;
-      if (available < 1) return false;
-    }
-    return true;
+    return matchesRecipeFilters(r, filters, {
+      coverageAvailable: !isOffline,
+      availableCount: coverage.data?.get(r.id)?.available_count ?? undefined,
+    });
   });
 
   const homeHeader = (
@@ -439,11 +431,13 @@ export default function RecipeListScreen() {
             ) : hasActiveConstraints && filteredItems.length === 0 ? (
               <View className="min-h-48 items-center justify-center px-8">
                 <Text className="text-center text-sm text-hmuted">
-                  {hasSearch && filterCount > 0
-                    ? "Arama ve filtrelerle eşleşen tarif yok."
-                    : hasSearch
-                      ? `“${search.trim()}” aramasıyla eşleşen tarif yok.`
-                      : "Bu filtrelerle eşleşen tarif yok."}
+                  {filters.excludedAllergens.length > 0
+                    ? "Bu seçimlerle eşleşen, alerjen bilgisi doğrulanmış tarif bulunamadı. Doğrulanmamış alerjen bilgisine sahip tarifler bu filtrede gösterilmez."
+                    : hasSearch && filterCount > 0
+                      ? "Arama ve filtrelerle eşleşen tarif yok."
+                      : hasSearch
+                        ? `“${search.trim()}” aramasıyla eşleşen tarif yok.`
+                        : "Bu filtrelerle eşleşen tarif yok."}
                 </Text>
                 <Pressable
                   onPress={() => {

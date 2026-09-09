@@ -17,6 +17,10 @@ export interface RecipeListItem {
   difficulty: string | null;
   cuisine: string | null;
   diet_tags: string[];
+  required_equipment: string[];
+  allergen_labels: string[] | null;
+  allergens_reviewed: boolean;
+  allergens_reviewed_at: string | null;
   displayPhotoUrl: string | null;
   isRepresentativePhoto: boolean;
 }

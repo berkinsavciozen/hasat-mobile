@@ -48,26 +48,41 @@ export function mapRecipeFacts(row: Partial<RecipeFacts>): RecipeFacts {
   };
 }
 
-export const ALLERGEN_SLUGS = [
-  "gluten",
-  "laktoz",
-  "yumurta",
-  "findik-yerfistigi",
-  "soya",
-  "susam",
-  "deniz-urunu",
+export const ALLERGEN_OPTIONS = [
+  { slug: "gluten", label: "Gluten" },
+  { slug: "laktoz", label: "Laktoz" },
+  { slug: "yumurta", label: "Yumurta" },
+  { slug: "findik-yerfistigi", label: "Fındık / yer fıstığı" },
+  { slug: "soya", label: "Soya" },
+  { slug: "susam", label: "Susam" },
+  { slug: "deniz-urunu", label: "Deniz ürünü" },
 ] as const;
+export const ALLERGEN_SLUGS = ALLERGEN_OPTIONS.map(({ slug }) => slug);
 export type AllergenSlug = (typeof ALLERGEN_SLUGS)[number];
+export const ALLERGEN_LABELS = Object.fromEntries(
+  ALLERGEN_OPTIONS.map(({ slug, label }) => [slug, label]),
+) as Record<AllergenSlug, string>;
 export type ReviewedAllergens =
   | { reviewState: "unreviewed"; labels: null }
   | { reviewState: "reviewed_with_labels" | "reviewed_without_labels"; labels: AllergenSlug[] };
+
+const REVIEWED_AT_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function isValidReviewedAt(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    REVIEWED_AT_PATTERN.test(value) &&
+    Number.isFinite(Date.parse(value))
+  );
+}
 
 /** Explicit public trust boundary. Raw candidate labels remain transport data only. */
 export function getReviewedAllergens(row: Partial<RecipeFacts>): ReviewedAllergens {
   const labels = row.allergen_labels;
   if (
     row.allergens_reviewed !== true ||
-    !row.allergens_reviewed_at ||
+    !isValidReviewedAt(row.allergens_reviewed_at) ||
     !Array.isArray(labels) ||
     !labels.every((label): label is AllergenSlug =>
       ALLERGEN_SLUGS.includes(label as AllergenSlug),
@@ -80,6 +95,16 @@ export function getReviewedAllergens(row: Partial<RecipeFacts>): ReviewedAllerge
     reviewState: labels.length ? "reviewed_with_labels" : "reviewed_without_labels",
     labels: [...labels],
   };
+}
+
+/** Inactive keeps the list unchanged; active selection excludes every untrusted recipe. */
+export function matchesAllergenExclusion(
+  row: Partial<RecipeFacts>,
+  selected: readonly AllergenSlug[],
+): boolean {
+  if (selected.length === 0) return true;
+  const reviewed = getReviewedAllergens(row);
+  return reviewed.labels !== null && selected.every((slug) => !reviewed.labels.includes(slug));
 }
 
 export type NutritionState = "computed" | "partial" | "estimated" | "unavailable";

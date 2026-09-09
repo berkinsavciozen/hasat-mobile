@@ -40,10 +40,12 @@ export type {
 };
 export { DIFFICULTY_LABELS } from "@/lib/hasat/types";
 
+const RECIPE_BASE_COLUMNS =
+  "id, slug, title, description, cover_photo_url, servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, required_equipment";
 const RECIPE_LIST_COLUMNS =
-  "id, slug, title, description, cover_photo_url, servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags";
+  `${RECIPE_BASE_COLUMNS}, allergen_labels, allergens_reviewed, allergens_reviewed_at` as const;
 
-const RECIPE_DETAIL_COLUMNS = `${RECIPE_LIST_COLUMNS}, ${RECIPE_FACT_COLUMNS}` as const;
+const RECIPE_DETAIL_COLUMNS = `${RECIPE_BASE_COLUMNS}, ${RECIPE_FACT_COLUMNS}` as const;
 
 /** Web'deki `attachCoverFallback`'in birebir aynısı — kapak fotoğrafı yoksa
  * (P23-M3 itibarıyla 18/18 NULL) ilk ana malzemenin crop görseline, o da
@@ -94,7 +96,7 @@ async function attachCoverFallback<T extends { id: string; cover_photo_url: stri
   });
 }
 
-async function fetchRecipeListFromNetwork(): Promise<RecipeListItem[]> {
+export async function fetchRecipeListFromNetwork(): Promise<RecipeListItem[]> {
   const { data: recipeRows, error } = await supabase
     .from("recipes")
     .select(RECIPE_LIST_COLUMNS)
@@ -103,7 +105,15 @@ async function fetchRecipeListFromNetwork(): Promise<RecipeListItem[]> {
     .order("title", { ascending: true });
   if (error) throw error;
   const withCover = await attachCoverFallback((recipeRows ?? []) as any[]);
-  return withCover.map((r) => ({ ...r, diet_tags: r.diet_tags ?? [] })) as RecipeListItem[];
+  return withCover.map((r) => ({
+    ...r,
+    diet_tags: Array.isArray(r.diet_tags) ? r.diet_tags : [],
+    required_equipment: Array.isArray(r.required_equipment) ? r.required_equipment : [],
+    allergen_labels: Array.isArray(r.allergen_labels) ? r.allergen_labels : null,
+    allergens_reviewed: r.allergens_reviewed === true,
+    allergens_reviewed_at:
+      typeof r.allergens_reviewed_at === "string" ? r.allergens_reviewed_at : null,
+  })) as RecipeListItem[];
 }
 
 export interface RecipeListResult {
@@ -248,7 +258,12 @@ export async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
 
   const [withCover] = await attachCoverFallback([recipeRow]);
   return {
-    recipe: { ...withCover, ...mapRecipeFacts(recipeRow), diet_tags: recipeRow.diet_tags ?? [] },
+    recipe: {
+      ...withCover,
+      ...mapRecipeFacts(recipeRow),
+      diet_tags: recipeRow.diet_tags ?? [],
+      required_equipment: recipeRow.required_equipment ?? [],
+    },
     steps: (stepRows ?? []) as RecipeStepRow[],
     ingredients: (ingredientRows ?? []) as unknown as RecipeIngredientRow[],
   };
@@ -305,6 +320,7 @@ export async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
       ...recipeRow,
       ...mapRecipeFacts(recipeRow),
       diet_tags: recipeRow.diet_tags ?? [],
+      required_equipment: recipeRow.required_equipment ?? [],
       displayPhotoUrl: recipeRow.cover_photo_url ?? null,
       isRepresentativePhoto: false,
     } as RecipeDetail,

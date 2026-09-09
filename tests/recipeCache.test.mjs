@@ -22,6 +22,7 @@ globalThis.__recipeDb = {
 installRuntime();
 const cache = await import("../src/lib/offline/recipeCache.ts");
 const { mapRecipeFacts, getReviewedAllergens, getNutritionState } = await import("../src/lib/hasat/recipeFacts.ts");
+const { EMPTY_RECIPE_FILTERS, matchesRecipeFilters } = await import("../src/lib/hasat/recipeListFilters.ts");
 const { deserializeRecipeFacts } = await import("../src/lib/offline/recipeFactsCache.ts");
 function detail(facts) { return { ...recipeRow(facts), displayPhotoUrl: "https://example.test/cover.webp", isRepresentativePhoto: false }; }
 const steps = [{ id: "step-1", step_no: 1, instruction: "Fixture step", photo_url: null, timer_seconds: 0 }];
@@ -42,7 +43,12 @@ test("upgrade a real legacy SQLite cache without losing content or trusting old 
   assert.deepEqual(mapRecipeFacts(found.recipe), unavailable);
   assert.equal(getReviewedAllergens(found.recipe).reviewState, "unreviewed");
   assert.equal((await cache.getDetailCacheStats()).count, 0);
-  assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 1);
+  assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 2);
+  assert.deepEqual(found.recipe.required_equipment, []);
+  assert.equal(matchesRecipeFilters(found.recipe, {
+    ...EMPTY_RECIPE_FILTERS,
+    excludedAllergens: ["gluten"],
+  }, { coverageAvailable: false }), false);
   // Simulate a process restart: CREATE IF NOT EXISTS + version guard must be idempotent.
   const restarted = await import("../src/lib/offline/db.ts?restart");
   await restarted.getDb();
@@ -63,14 +69,19 @@ for (const [state, facts] of Object.entries({ ...nutritionFixtures, ...allergenF
     if (state in allergenFixtures) assert.equal(getReviewedAllergens(found.recipe).reviewState, state);
   });
 }
-test("list refresh preserves detail facts, including review revocation and explicit null", async () => {
-  await cache.cacheRecipeDetail(detail(allergenFixtures.reviewed_with_labels), steps, ingredients);
-  await cache.cacheRecipeList([detail(unavailable)]);
-  assert.deepEqual(mapRecipeFacts((await cache.getCachedRecipeDetail("fixture-recipe")).recipe), allergenFixtures.reviewed_with_labels);
-  await cache.cacheRecipeDetail(detail(allergenFixtures.unreviewed), steps, ingredients);
-  await cache.cacheRecipeList([detail(unavailable)]);
-  assert.equal(getReviewedAllergens((await cache.getCachedRecipeDetail("fixture-recipe")).recipe).labels, null);
-  await cache.cacheRecipeDetail(detail(nutritionFixtures.computed), steps, ingredients);
+test("list refresh updates filter facts, preserves nutrition and carries equipment", async () => {
+  const reviewedNutrition = {
+    ...nutritionFixtures.computed,
+    allergen_labels: ["gluten"],
+    allergens_reviewed: true,
+    allergens_reviewed_at: "2026-09-07T00:00:00Z",
+  };
+  await cache.cacheRecipeDetail(detail(reviewedNutrition), steps, ingredients);
+  await cache.cacheRecipeList([{ ...detail(allergenFixtures.unreviewed), required_equipment: ["firin"] }]);
+  const refreshed = (await cache.getCachedRecipeDetail("fixture-recipe")).recipe;
+  assert.equal(getNutritionState(refreshed), "computed");
+  assert.equal(getReviewedAllergens(refreshed).reviewState, "unreviewed");
+  assert.deepEqual(refreshed.required_equipment, ["firin"]);
   await cache.cacheRecipeDetail(detail(unavailable), steps, ingredients);
   assert.deepEqual(mapRecipeFacts((await cache.getCachedRecipeDetail("fixture-recipe")).recipe), unavailable);
 });
@@ -102,7 +113,7 @@ test("fresh installs create the versioned cache; restarting preserves detail fre
   };
   const first = await import("../src/lib/offline/db.ts?fresh");
   await first.getDb();
-  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 1);
+  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 2);
   fresh.exec("INSERT INTO cached_recipe_detail_meta VALUES ('test',123)");
   const second = await import("../src/lib/offline/db.ts?fresh-restart");
   await second.getDb();

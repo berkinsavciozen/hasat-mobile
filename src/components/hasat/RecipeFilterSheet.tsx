@@ -1,38 +1,36 @@
-// F13-dar — tarifler ekranında süre/malzeme/diyet filtresi. Web'in
-// tarifler.index.tsx filtre çubuğunun mobil karşılığı: aynı üç filtre, aynı
-// eşikler (aktif süre = hazırlık+pişirme, `v_recipe_coverage.available_count
-// >= 1`, `diet_tags`'te GERÇEKTEN kullanılan değerler) — migration yok,
-// yalnızca var olan veriye UI. Proje genelinde bottom-sheet kütüphanesi yok;
-// CropRequestSheet.tsx'teki Modal + slide-up desenini birebir izliyor.
+// F13-dar + C4 — mevcut süre/malzeme/diyet filtrelerine web ile aynı kontrollü
+// alerjen ve ekipman çoklu seçimleri eklenir. Aktif süre eşikleri ve canlı
+// `v_recipe_coverage` davranışı değişmez. Proje genelinde bottom-sheet
+// kütüphanesi yok; CropRequestSheet.tsx'teki Modal + slide-up deseni korunur.
 import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 import { AppIcon } from "@/components/hasat/AppIcon";
 import { useReducedMotion } from "@/lib/native/useReducedMotion";
+import { ALLERGEN_OPTIONS, type AllergenSlug } from "@/lib/hasat/recipeFacts";
+import {
+  EMPTY_RECIPE_FILTERS,
+  EQUIPMENT_OPTIONS,
+  activeFilterCount,
+  type DurationBucket,
+  type EquipmentSlug,
+  type RecipeFilters,
+} from "@/lib/hasat/recipeListFilters";
 
-export type DurationBucket = "30" | "60" | null;
-
-export interface RecipeFilters {
-  duration: DurationBucket;
-  diet: string | null;
-  onlyAvailable: boolean;
-}
-
-export const EMPTY_RECIPE_FILTERS: RecipeFilters = {
-  duration: null,
-  diet: null,
-  onlyAvailable: false,
-};
-
-export function activeFilterCount(f: RecipeFilters): number {
-  return (f.duration ? 1 : 0) + (f.diet ? 1 : 0) + (f.onlyAvailable ? 1 : 0);
-}
+export { EMPTY_RECIPE_FILTERS, activeFilterCount };
+export type { RecipeFilters };
 
 const DURATION_OPTIONS: { key: NonNullable<DurationBucket>; label: string }[] =
   [
     { key: "30", label: "30 dk'dan az" },
     { key: "60", label: "1 saate kadar" },
   ];
+
+function toggleSelection<T extends string>(values: readonly T[], value: T): T[] {
+  return values.includes(value)
+    ? values.filter((item) => item !== value)
+    : [...values, value];
+}
 
 export function RecipeFilterSheet({
   visible,
@@ -69,6 +67,8 @@ export function RecipeFilterSheet({
       >
         <ScrollView
           className="max-h-[85%] rounded-t-2xl bg-dark"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
           contentContainerStyle={{
             paddingHorizontal: 20,
             paddingBottom: insets.bottom + 16,
@@ -87,7 +87,10 @@ export function RecipeFilterSheet({
             </Pressable>
           </View>
 
-          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+          <Text
+            className="mb-2 text-[11px] uppercase tracking-wider text-hmuted"
+            accessibilityRole="header"
+          >
             Süre
           </Text>
           <View className="mb-4 flex-row flex-wrap gap-2">
@@ -108,7 +111,10 @@ export function RecipeFilterSheet({
 
           {dietTags.length > 0 && (
             <>
-              <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+              <Text
+                className="mb-2 text-[11px] uppercase tracking-wider text-hmuted"
+                accessibilityRole="header"
+              >
                 Diyet etiketi
               </Text>
               <View className="mb-4 flex-row flex-wrap gap-2">
@@ -129,7 +135,64 @@ export function RecipeFilterSheet({
             </>
           )}
 
-          <Text className="mb-2 text-[11px] uppercase tracking-wider text-hmuted">
+          <Text
+            className="mb-2 text-[11px] uppercase tracking-wider text-hmuted"
+            accessibilityRole="header"
+          >
+            Şunları içermeyenler
+          </Text>
+          <Text className="mb-2 text-xs leading-5 text-hmuted">
+            Seçim yapıldığında alerjen bilgisi doğrulanmamış tarifler gösterilmez.
+          </Text>
+          <View className="mb-4 flex-row flex-wrap gap-2">
+            {ALLERGEN_OPTIONS.map(({ slug, label }) => (
+              <FilterChip
+                key={slug}
+                label={label}
+                active={filters.excludedAllergens.includes(slug)}
+                onPress={() =>
+                  onChange({
+                    ...filters,
+                    excludedAllergens: toggleSelection<AllergenSlug>(
+                      filters.excludedAllergens,
+                      slug,
+                    ),
+                  })
+                }
+                multiSelect
+                accessibilityLabel={`${label} içermeyenleri göster`}
+              />
+            ))}
+          </View>
+
+          <Text
+            className="mb-2 text-[11px] uppercase tracking-wider text-hmuted"
+            accessibilityRole="header"
+          >
+            Ekipman
+          </Text>
+          <View className="mb-4 flex-row flex-wrap gap-2">
+            {EQUIPMENT_OPTIONS.map(({ slug, label }) => (
+              <FilterChip
+                key={slug}
+                label={label}
+                active={filters.equipment.includes(slug)}
+                onPress={() =>
+                  onChange({
+                    ...filters,
+                    equipment: toggleSelection<EquipmentSlug>(filters.equipment, slug),
+                  })
+                }
+                multiSelect
+                accessibilityLabel={`${label} ekipman filtresi`}
+              />
+            ))}
+          </View>
+
+          <Text
+            className="mb-2 text-[11px] uppercase tracking-wider text-hmuted"
+            accessibilityRole="header"
+          >
             Malzeme
           </Text>
           <Pressable
@@ -197,10 +260,14 @@ function FilterChip({
   label,
   active,
   onPress,
+  multiSelect = false,
+  accessibilityLabel,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  multiSelect?: boolean;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
@@ -210,8 +277,9 @@ function FilterChip({
         borderColor: active ? "#1F6E82" : "rgba(253,250,245,0.15)",
         backgroundColor: active ? "rgba(22,127,140,0.25)" : "transparent",
       }}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
+      accessibilityRole={multiSelect ? "checkbox" : "button"}
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={multiSelect ? { checked: active } : { selected: active }}
     >
       <Text
         className="text-xs"
