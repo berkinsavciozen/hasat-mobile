@@ -105,14 +105,15 @@ test("protected deep links are denied while offline; public recipe routes remain
 
 // Execute the actual screen boundary render using controlled hook snapshots.
 function renderBoundary(path, status, checkedKey = null) {
-  const key = `${path}:false:true:0`;
+  const key = "false:true:0";
   const states = [true, 0, status ? { key: checkedKey ?? key, result: { status } } : null];
   const component = load("src/components/hasat/SessionBoundary.tsx", {
     react: { useState: () => [states.shift(), () => {}], useEffect() {}, useCallback: (fn) => fn },
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     "expo-router": { Redirect: "Redirect", usePathname: () => path, useFocusEffect() {} },
-    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", ActivityIndicator: "Spinner" },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable" },
     "@/components/hasat/BrandLogo": { BrandLogo: "BrandLogo" },
+    "@/components/hasat/SeedlingLoader": { SeedlingLoader: "SeedlingLoader" },
     "@/lib/net/useIsOffline": { useIsOffline: () => false },
     "@/lib/supabase/client": {}, "@/lib/hasat/validateSession": {},
     "@/lib/hasat/profileSession": policy,
