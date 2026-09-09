@@ -111,8 +111,9 @@ function renderBoundary(path, status, checkedKey = null) {
     react: { useState: () => [states.shift(), () => {}], useEffect() {}, useCallback: (fn) => fn },
     "react/jsx-runtime": { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     "expo-router": { Redirect: "Redirect", usePathname: () => path, useFocusEffect() {} },
-    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", ActivityIndicator: "Spinner" },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable" },
     "@/components/hasat/BrandLogo": { BrandLogo: "BrandLogo" },
+    "@/components/hasat/SeedlingLoader": { SeedlingLoader: "SeedlingLoader" },
     "@/lib/net/useIsOffline": { useIsOffline: () => false },
     "@/lib/supabase/client": {}, "@/lib/hasat/validateSession": {},
     "@/lib/hasat/profileSession": policy,
@@ -131,6 +132,69 @@ test("unavailable/guest deep link blocked while offline editorial route stays op
   assert.notEqual(renderBoundary("/orders", "unavailable"), "SCREEN");
   assert.equal(renderBoundary("/orders", "guest").props.href, "/login");
   assert.equal(renderBoundary("/recipe/slug", "unavailable"), "SCREEN");
+});
+
+function boundaryTransition(initialPath, result) {
+  let path = initialPath;
+  let hookIndex = 0;
+  const states = [true, 0, null];
+  let validationEffect = null;
+  const component = load("src/components/hasat/SessionBoundary.tsx", {
+    react: {
+      useState: (initial) => {
+        const index = hookIndex++;
+        if (states[index] === undefined) states[index] = initial;
+        return [states[index], (update) => {
+          states[index] = typeof update === "function" ? update(states[index]) : update;
+        }];
+      },
+      useEffect: (effect) => { validationEffect = effect; },
+      useCallback: (fn) => fn,
+    },
+    "react/jsx-runtime": { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
+    "expo-router": { Redirect: "Redirect", usePathname: () => path, useFocusEffect() {} },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", AppState: {} },
+    "@/components/hasat/BrandLogo": { BrandLogo: "BrandLogo" },
+    "@/components/hasat/SeedlingLoader": { SeedlingLoader: "SeedlingLoader" },
+    "@/lib/net/useIsOffline": { useIsOffline: () => false },
+    "@/lib/supabase/client": { supabase: {} },
+    "@/lib/hasat/validateSession": { validateSession: async () => result },
+    "@/lib/hasat/profileSession": policy,
+  });
+  return {
+    render(nextPath = path) {
+      path = nextPath;
+      hookIndex = 0;
+      return component.SessionBoundary({ children: "SCREEN" });
+    },
+    async completeValidation() {
+      const cleanup = validationEffect?.();
+      await Promise.resolve();
+      return cleanup;
+    },
+  };
+}
+
+test("same boundary fails closed from home to recipe until the recipe validation completes", async () => {
+  const boundary = boundaryTransition("/home", { status: "active", profile: active("buyer") });
+  assert.notEqual(boundary.render(), "SCREEN");
+  await boundary.completeValidation();
+  assert.equal(boundary.render(), "SCREEN");
+
+  const pendingRecipe = boundary.render("/recipe/domates-corbasi");
+  assert.notEqual(pendingRecipe, "SCREEN");
+  assert.equal(pendingRecipe.props.accessibilityLabel, "Sayfa yükleniyor");
+});
+
+test("same boundary does not reuse a wrong-role result on a protected route", async () => {
+  const boundary = boundaryTransition("/home", { status: "active", profile: active("farmer") });
+  boundary.render();
+  await boundary.completeValidation();
+  assert.equal(boundary.render(), "SCREEN");
+
+  const pendingProtected = boundary.render("/orders");
+  assert.notEqual(pendingProtected, "SCREEN");
+  assert.equal(pendingProtected.props.accessibilityLabel, "Sayfa yükleniyor");
 });
 
 test("known-offline bootstrap preserves cached user without attempting network auth", async () => {

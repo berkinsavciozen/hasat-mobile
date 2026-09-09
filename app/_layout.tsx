@@ -14,14 +14,14 @@ import {
 } from "@/lib/native/notifications";
 import { installSessionGuard } from "@/lib/hasat/sessionGuard";
 import { SessionBoundary } from "@/components/hasat/SessionBoundary";
+import { useReducedMotion } from "@/lib/native/useReducedMotion";
 
-// Final logo geldi (Hasat OS Milestone 3 — Brand Identity Freeze, W2/M1).
-// Native splash (app.json → "expo-splash-screen" plugin) artık `image` de
-// taşıyor; JS katmanındaki bu ekran login.tsx'in aynı deseniyle marka
-// kimliğini (koyu zeminde beyaz monogram+wordmark) sürdürüyor.
+// Native splash and the first JS bootstrap frame intentionally share the same
+// dark surface and single wordmark, preventing a white/black hand-off flash.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const reduceMotion = useReducedMotion();
   // P23-M8-b-2 — kök neden düzeltmesi: gotrue-js'in kendi belgelenmiş
   // davranışı ("On non-browser platforms the refresh process works
   // *continuously* in the background... You should hook into your
@@ -77,7 +77,10 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <StatusBar style="light" />
         <Stack
-          screenOptions={{ headerShown: false }}
+          screenOptions={{
+            headerShown: false,
+            animation: reduceMotion ? "none" : "default",
+          }}
           screenLayout={({ children }) => <SessionBoundary>{children}</SessionBoundary>}
         />
       </QueryClientProvider>
