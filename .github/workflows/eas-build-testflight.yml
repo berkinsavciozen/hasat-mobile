@@ -16,7 +16,7 @@ on:
       latest_asc_build_number:
         description: "Latest iOS build number already present in App Store Connect"
         required: true
-        type: number
+        type: string
 
 permissions:
   contents: read
@@ -33,17 +33,63 @@ jobs:
     env:
       EAS_PROFILE: ios-testflight
     steps:
+      - name: Workflow girdilerini normalize et
+        id: normalized_inputs
+        env:
+          RELEASE_REF_RAW: ${{ inputs.release_ref }}
+          EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
+          LATEST_ASC_BUILD_NUMBER_RAW: ${{ inputs.latest_asc_build_number }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          const releaseRef = (process.env.RELEASE_REF_RAW ?? "").trim();
+          const expectedSha = (process.env.EXPECTED_SHA_RAW ?? "").trim();
+          const latestAscBuildNumber =
+            (process.env.LATEST_ASC_BUILD_NUMBER_RAW ?? "").trim();
+
+          if (!releaseRef || /[\u0000-\u001f\u007f]/.test(releaseRef)) {
+            console.error(
+              "Refusing release: release_ref must be a non-empty single-line ref.",
+            );
+            process.exit(1);
+          }
+          if (!/^[0-9a-f]{40}$/.test(expectedSha)) {
+            console.error(
+              "Refusing release: expected_sha must be a full lowercase commit SHA.",
+            );
+            process.exit(1);
+          }
+          if (!/^(0|[1-9][0-9]*)$/.test(latestAscBuildNumber)) {
+            console.error(
+              "Preflight failed: latest App Store Connect build number must be a canonical non-negative integer.",
+            );
+            process.exit(1);
+          }
+
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            [
+              `release_ref=${releaseRef}`,
+              `expected_sha=${expectedSha}`,
+              `latest_asc_build_number=${latestAscBuildNumber}`,
+              "",
+            ].join("\n"),
+          );
+          NODE
+
       - name: Seçilen ref'i checkout et
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_ref }}
+          ref: ${{ steps.normalized_inputs.outputs.release_ref }}
           fetch-depth: 0
 
       - name: Release kaynağını doğrula
         id: release_source
         env:
-          RELEASE_REF: ${{ inputs.release_ref }}
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RELEASE_REF: ${{ steps.normalized_inputs.outputs.release_ref }}
+          EXPECTED_SHA: ${{ steps.normalized_inputs.outputs.expected_sha }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_REPOSITORY" != "berkinsavciozen/hasat-mobile" ]; then
@@ -84,7 +130,7 @@ jobs:
       - name: EAS uzak build numarası preflight
         id: version_preflight
         env:
-          LATEST_ASC_BUILD_NUMBER: ${{ inputs.latest_asc_build_number }}
+          LATEST_ASC_BUILD_NUMBER: ${{ steps.normalized_inputs.outputs.latest_asc_build_number }}
         run: |
           set -euo pipefail
           eas build:version:get --platform ios --profile "$EAS_PROFILE" --non-interactive --json > eas-version.json
@@ -131,7 +177,7 @@ jobs:
       - name: Release özetini yaz
         if: always()
         env:
-          RELEASE_REF: ${{ inputs.release_ref }}
+          RELEASE_REF: ${{ steps.normalized_inputs.outputs.release_ref }}
           RESOLVED_SHA: ${{ steps.release_source.outputs.resolved_sha }}
           APP_VERSION: ${{ steps.version_preflight.outputs.app_version }}
           REMOTE_BUILD_NUMBER: ${{ steps.version_preflight.outputs.remote_build_number }}
