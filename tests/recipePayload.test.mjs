@@ -59,11 +59,33 @@ test("missing legacy fields are unknown; zero and null remain distinct", async (
 });
 test("allergen review fails closed and never confuses null with reviewed empty", () => {
   for (const delta of [{ allergens_reviewed: false }, { allergens_reviewed: null },
-    { allergens_reviewed_at: null }, { allergen_labels: null }, { allergen_labels: ["milk"] },
+    { allergens_reviewed_at: null }, { allergens_reviewed_at: "not-a-date" },
+    { allergens_reviewed_at: "2026-09-07" }, { allergen_labels: null }, { allergen_labels: ["milk"] },
     { allergen_labels: ["gluten", "gluten"] }]) {
     assert.deepEqual(getReviewedAllergens({ ...allergenFixtures.reviewed_with_labels, ...delta }), { reviewState: "unreviewed", labels: null });
   }
   assert.equal(getReviewedAllergens({ ...allergenFixtures.reviewed_with_labels, allergen_labels: [...ALLERGEN_SLUGS] }).labels.length, 7);
+});
+test("real list query carries only C4 filter fields and maps nullable values", async () => {
+  const listRow = recipeRow(allergenFixtures.reviewed_with_labels);
+  row = [listRow];
+  requests.length = 0;
+  const list = await api.fetchRecipeListFromNetwork();
+  row = listRow;
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0].allergen_labels, ["gluten", "laktoz"]);
+  assert.equal(list[0].allergens_reviewed, true);
+  assert.equal(list[0].allergens_reviewed_at, "2026-09-07T00:00:00Z");
+  assert.deepEqual(list[0].required_equipment, []);
+  const query = requests.find(url => url.pathname.endsWith("/recipes"));
+  const selected = query.searchParams.get("select").split(",");
+  for (const field of [
+    "allergen_labels",
+    "allergens_reviewed",
+    "allergens_reviewed_at",
+    "required_equipment",
+  ]) assert.ok(selected.includes(field), field);
+  assert.equal(selected.includes("calories"), false);
 });
 test("nutrition rejects incomplete/invalid source, coverage, servings and macros", () => {
   const valid = { ...nutritionFixtures.computed, servings: 2 };

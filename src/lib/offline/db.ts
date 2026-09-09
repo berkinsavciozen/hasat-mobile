@@ -99,6 +99,14 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
           await db.execAsync("PRAGMA user_version = 1");
         });
       }
+      if ((version?.user_version ?? 0) < 2) {
+        await db.withTransactionAsync(async () => {
+          // Null marks a pre-C4 cache row. Hydration maps it to [] so an active
+          // equipment filter cannot treat unknown data as a match.
+          await db.execAsync("ALTER TABLE cached_recipes ADD COLUMN required_equipment TEXT");
+          await db.execAsync("PRAGMA user_version = 2");
+        });
+      }
       return db;
     });
   }

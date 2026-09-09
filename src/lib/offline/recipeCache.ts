@@ -18,7 +18,20 @@ function toRow(r: RecipeListItem) {
     difficulty: r.difficulty,
     cuisine: r.cuisine,
     diet_tags: JSON.stringify(r.diet_tags ?? []),
+    required_equipment: JSON.stringify(r.required_equipment ?? []),
   };
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every((item) => typeof item === "string")
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function fromRow(row: any): RecipeDetail {
@@ -36,7 +49,8 @@ function fromRow(row: any): RecipeDetail {
     rest_minutes: row.rest_minutes,
     difficulty: row.difficulty,
     cuisine: row.cuisine,
-    diet_tags: JSON.parse(row.diet_tags ?? "[]"),
+    diet_tags: parseStringArray(row.diet_tags),
+    required_equipment: parseStringArray(row.required_equipment),
     cover_photo_url: null,
     ...facts,
   };
@@ -57,11 +71,21 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
     await db.runAsync("DELETE FROM cached_recipes");
     for (const item of items) {
       const row = toRow(item);
+      const previousFacts = deserializeRecipeFacts(factsById.get(item.id));
+      const listFacts = serializeRecipeFacts(
+        mapRecipeFacts({
+          ...previousFacts,
+          allergen_labels: item.allergen_labels,
+          allergens_reviewed: item.allergens_reviewed,
+          allergens_reviewed_at: item.allergens_reviewed_at,
+        }),
+      );
       await db.runAsync(
         `INSERT INTO cached_recipes
           (id, slug, title, description, display_photo_url, is_representative_photo,
-           servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at, recipe_facts)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags,
+           cached_at, recipe_facts, required_equipment)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id,
           row.slug,
@@ -77,7 +101,8 @@ export async function cacheRecipeList(items: RecipeListItem[]): Promise<void> {
           row.cuisine,
           row.diet_tags,
           now,
-          factsById.get(item.id) ?? null,
+          listFacts,
+          row.required_equipment,
         ],
       );
     }
@@ -151,8 +176,9 @@ export async function cacheRecipeDetail(
     await db.runAsync(
       `INSERT INTO cached_recipes
         (id, slug, title, description, display_photo_url, is_representative_photo,
-         servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags, cached_at, recipe_facts)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         servings, prep_minutes, cook_minutes, rest_minutes, difficulty, cuisine, diet_tags,
+         cached_at, recipe_facts, required_equipment)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          slug=excluded.slug, title=excluded.title, description=excluded.description,
          display_photo_url=excluded.display_photo_url,
@@ -161,7 +187,8 @@ export async function cacheRecipeDetail(
          cook_minutes=excluded.cook_minutes, rest_minutes=excluded.rest_minutes,
          difficulty=excluded.difficulty, cuisine=excluded.cuisine,
          diet_tags=excluded.diet_tags, cached_at=excluded.cached_at,
-         recipe_facts=excluded.recipe_facts`,
+         recipe_facts=excluded.recipe_facts,
+         required_equipment=excluded.required_equipment`,
       [
         row.id,
         row.slug,
@@ -178,6 +205,7 @@ export async function cacheRecipeDetail(
         row.diet_tags,
         now,
         serializeRecipeFacts(mapRecipeFacts(recipe)),
+        row.required_equipment,
       ],
     );
     await db.runAsync("DELETE FROM cached_recipe_steps WHERE recipe_id = ?", [recipe.id]);
