@@ -1,3 +1,4 @@
+import "@/lib/sentry/init";
 import "../src/styles/global.css";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
@@ -6,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AppState } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
+import * as Sentry from "@sentry/react-native";
 import { queryClient } from "@/lib/query/client";
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -20,7 +22,7 @@ import { useReducedMotion } from "@/lib/native/useReducedMotion";
 // dark surface and single wordmark, preventing a white/black hand-off flash.
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+function RootLayout() {
   const reduceMotion = useReducedMotion();
   // P23-M8-b-2 — kök neden düzeltmesi: gotrue-js'in kendi belgelenmiş
   // davranışı ("On non-browser platforms the refresh process works
@@ -87,3 +89,5 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);
