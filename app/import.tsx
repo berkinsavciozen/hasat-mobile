@@ -7,9 +7,15 @@
 // taşınmak zorunda kalmasın diye. Kullanıcı açısından fark yok — her aşama
 // tam ekran.
 //
-// KAPSAM DIŞI (bilinçli, M9 — hukuki kontrol şartlı): YouTube/link importu ve
-// bitmiş yemek fotoğrafından tahmin. Bu ekranda böyle bir giriş YOK; edge
-// function da `mode` olarak yalnızca 'text'/'photo' kabul ediyor.
+// T7a (2026-09-10, Berkin'in onayı — kural #107 sorusu, "Devam et, hukuki
+// risk kabul" cevabı): "bitmiş yemek fotoğrafından tahmin" artık BURADA da
+// bir giriş noktası — `pickImage(source, "estimate")` → `runEstimate` →
+// `estimate-recipe-from-photo` (bkz. lib/hasat/photoEstimate.ts). Aynı review
+// formu (bu dosyanın kalbi) yeniden kullanılıyor; tek fark, tahmin akışının
+// döndürdüğü `disclaimer` + `uncertain_notes`'un review aşamasında BELİRGİN
+// gösterilmesi (`estimateMeta` state'i, aşağıda). YouTube/link importu hâlâ
+// KAPSAM DIŞI (M9, ayrı bir hukuki kontrol maddesi) — edge function'lar
+// `mode`/görsel dışında bir kaynak kabul etmiyor.
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +34,7 @@ import {
   type RecipeDraft,
   type IngredientClass,
 } from "@/lib/hasat/import";
+import { estimateRecipeFromPhoto, PhotoEstimateError } from "@/lib/hasat/photoEstimate";
 import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { CropPickerModal } from "@/components/hasat/CropPickerModal";
@@ -67,6 +74,12 @@ export default function ImportScreen() {
   // seçilebilir, ImagePicker zaten modal — çakışma riski yok).
   const [uploadingStepKey, setUploadingStepKey] = useState<string | null>(null);
   const userId = useHasatMobileSession((s) => s.user?.id);
+  // T7a — yalnızca fotoğraftan-tahmin akışında dolu; review'da disclaimer'ı
+  // BELİRGİN göstermek için (kabul kriteri #1/#2). Normal AI import'ta null.
+  const [estimateMeta, setEstimateMeta] = useState<{
+    disclaimer: string;
+    uncertainNotes: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!isEditMode || !editRecipeId) return;
@@ -90,6 +103,7 @@ export default function ImportScreen() {
   const run = useCallback(
     async (input: { mode: "text" | "photo"; text?: string; base64?: string; mime?: string }) => {
       setError(null);
+      setEstimateMeta(null);
       setStage("loading");
       try {
         const result = await extractRecipe({
@@ -110,8 +124,41 @@ export default function ImportScreen() {
     [recipeName],
   );
 
+  // T7a — bitmiş/pişmiş yemek fotoğrafından TAHMİN. `run()`dan ayrı: farklı
+  // edge function, farklı sonuç şekli (`disclaimer`/`uncertain_notes`, DB'ye
+  // yazılmıyor — yalnızca review'da gösterilecek, geçici ekran state'i).
+  const runEstimate = useCallback(
+    async (input: { base64: string; mime: string }) => {
+      setError(null);
+      setStage("loading");
+      try {
+        const result = await estimateRecipeFromPhoto({
+          imageBase64: input.base64,
+          imageMime: input.mime,
+          recipeName: recipeName.trim() || undefined,
+        });
+        const loaded = await loadDraft(result.recipeId);
+        setDraft(loaded);
+        setEstimateMeta({ disclaimer: result.disclaimer, uncertainNotes: result.uncertainNotes });
+        setStage("review");
+      } catch (e) {
+        setError(
+          e instanceof PhotoEstimateError ? e.message : "Tarif tahmin edilemedi. Tekrar dener misin?",
+        );
+        setStage("pick");
+      }
+    },
+    [recipeName],
+  );
+
+  // `intent="text"` — yazılı tarif fotoğrafı (extract-recipe, OCR/okuma).
+  // `intent="estimate"` — T7a, PİŞMİŞ yemek fotoğrafı (estimate-recipe-from-photo,
+  // TAHMİN). Aynı izin/seçim/boyut-kontrolü — dispatch'in "mevcut fotoğraf
+  // yükleme akışlarında böyle bir şey varsa onu kullan" kabul kriteri #4:
+  // `quality: 0.5` zaten burada var olan tek sıkıştırma mekanizması, yeni bir
+  // resize kütüphanesi eklenmedi.
   const pickImage = useCallback(
-    async (source: "camera" | "library") => {
+    async (source: "camera" | "library", intent: "text" | "estimate" = "text") => {
       setError(null);
       const permission =
         source === "camera"
@@ -120,7 +167,7 @@ export default function ImportScreen() {
       if (!permission.granted) {
         setError(
           source === "camera"
-            ? "Kamera izni verilmedi. Tarif sayfasının fotoğrafını çekebilmek için izin gerekiyor — galeriden seçmeyi ya da metin yapıştırmayı da deneyebilirsin."
+            ? "Kamera izni verilmedi. Fotoğraf çekebilmek için izin gerekiyor — galeriden seçmeyi ya da metin yapıştırmayı da deneyebilirsin."
             : "Galeri izni verilmedi. Fotoğraf çekmeyi ya da metin yapıştırmayı deneyebilirsin.",
         );
         return;
@@ -142,17 +189,21 @@ export default function ImportScreen() {
         return;
       }
       if ((asset.base64.length * 3) / 4 > MAX_IMAGE_BYTES) {
-        setError("Fotoğraf çok büyük. Daha yakından, tek sayfayı içeren bir kare çek.");
+        setError("Fotoğraf çok büyük. Daha yakından bir kare dener misin?");
         return;
       }
       setPreviewUri(asset.uri);
-      await run({
-        mode: "photo",
-        base64: asset.base64,
-        mime: asset.mimeType ?? "image/jpeg",
-      });
+      if (intent === "estimate") {
+        await runEstimate({ base64: asset.base64, mime: asset.mimeType ?? "image/jpeg" });
+      } else {
+        await run({
+          mode: "photo",
+          base64: asset.base64,
+          mime: asset.mimeType ?? "image/jpeg",
+        });
+      }
     },
-    [run],
+    [run, runEstimate],
   );
 
   // P23-M8-d (T4) — bulgu S33 adım 25 (nice-to-have): AI import sonrası
@@ -334,7 +385,30 @@ export default function ImportScreen() {
           contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
           keyboardShouldPersistTaps="handled"
         >
-          {lowConfidence && (
+          {/* T7a kabul kriteri #1 — ZORUNLU: disclaimer küçük bir dipnot değil,
+              belirgin bir banner olarak gösterilmeli. Kalın çerçeve + dolu
+              arkaplan + emoji bilinçli — genel `lowConfidence` uyarısından
+              (aşağıda, estimateMeta'da bastırılıyor) daha güçlü bir görünüm. */}
+          {estimateMeta && (
+            <View className="mb-4 rounded-xl border-2 border-gold bg-gold/25 p-3">
+              <Text className="text-xs font-semibold text-hwhite">⚠️ {estimateMeta.disclaimer}</Text>
+            </View>
+          )}
+          {/* T7a kabul kriteri #2 — uncertain_notes varsa ayrıca liste olarak. */}
+          {estimateMeta && estimateMeta.uncertainNotes.length > 0 && (
+            <View className="mb-4 rounded-xl border border-white/15 bg-white/5 p-3">
+              <Text className="mb-1 text-xs font-medium text-hwhite">
+                Emin olunamayan noktalar
+              </Text>
+              {estimateMeta.uncertainNotes.map((note, i) => (
+                <Text key={i} className="text-[11px] text-hmuted">
+                  • {note}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {lowConfidence && !estimateMeta && (
             <View className="mb-4 rounded-xl border border-gold/40 bg-gold/15 p-3">
               <Text className="text-xs text-hwhite">
                 ⚠️ Bu tarifi okurken pek emin olamadık. Alanları bir kez gözden geçir —
@@ -679,8 +753,32 @@ export default function ImportScreen() {
               onPress={() => setStage("text")}
             />
 
+            {/* T7a — yazılı tarif fotoğrafından AYRI bir giriş: burada fotoğraf
+                PİŞMİŞ/HAZIRLANMIŞ yemeğin kendisi, tarifin metni değil. AI
+                bunu OKUMAZ, TAHMİN eder — bu yüzden ayrı bir bölüm başlığı ve
+                net bir "deneysel/tahmini" çerçeveme var (disclaimer zaten
+                review'da tekrar, belirgin şekilde gösteriliyor). */}
+            <Text className="mb-2 mt-6 text-xs font-medium uppercase tracking-wider text-hmuted">
+              Ya da: pişmiş bir yemeğin fotoğrafından tahmin et
+            </Text>
+            <Text className="mb-3 text-[11px] text-hmuted">
+              Yazılı tarifin yok ama yemeğin fotoğrafı var mı? AI, göründüğüne bakarak olası bir
+              tarif TAHMİN eder — gerçek tarifle farklılık gösterebilir, kaydetmeden önce mutlaka
+              kontrol etmen gerekir.
+            </Text>
+            <BigButton
+              disabled={isOffline}
+              label="🍲 Yemek Fotoğrafı Çek (Tahmin Et)"
+              onPress={() => void pickImage("camera", "estimate")}
+            />
+            <BigButton
+              disabled={isOffline}
+              label="🖼 Galeriden Seç (Tahmin Et)"
+              onPress={() => void pickImage("library", "estimate")}
+            />
+
             <Text className="mt-6 text-[11px] text-hmuted">
-              Bağlantı/YouTube ile içe aktarma ve bitmiş yemek fotoğrafından tahmin henüz yok.
+              Bağlantı/YouTube ile içe aktarma henüz yok.
             </Text>
           </>
         ) : (

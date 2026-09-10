@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
+import { supabase } from "@/lib/supabase/client";
 import {
   RepresentativePhoto,
   RepresentativeBadge,
@@ -322,6 +323,30 @@ export default function RecipeDetailScreen() {
             ))}
           </View>
         )}
+
+        {/* T6/F11 — CTA'lar yalnızca uygun KAYNAK tarifte: `author_type <>
+            'kullanici'` (kişisel tariflerden kişisel tarif türetilemez — hem
+            RPC'lerin kendi sunucu-taraflı kontrolü hem dispatch kabul
+            kriteri). `isOwn` zaten `own=1` rotasında bu bloğu render etmiyor,
+            ama kaynak `RecipeDetail.author_type` sinyali yine de kontrol
+            ediliyor — ikisi bağımsız sinyaller. İkisi de ağ round-trip'i
+            gerektirdiği için çevrimdışıyken hiç gösterilmiyor. */}
+        {!isOwn && !isOffline && !!r.author_type && r.author_type !== "kullanici" && (
+          <View className="mt-3 flex-row flex-wrap gap-2">
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/recipe-customize",
+                  params: { recipeId: r.id, title: r.title },
+                })
+              }
+              className="rounded-full border border-white/15 px-3 py-1.5"
+            >
+              <Text className="text-xs font-medium text-hwhite">🎨 AI ile Özelleştir</Text>
+            </Pressable>
+            <CloneRecipeButton recipeId={r.id} />
+          </View>
+        )}
       </View>
 
       <View className="px-5">
@@ -551,6 +576,52 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
         color={isSaved ? "#C0392B" : "#8A8678"}
       />
     </Pressable>
+  );
+}
+
+/** F11 — "Bağımsız klonla". Backend'de idempotency YOK (bilinçli, tek-adımlı
+ * bir aksiyon — dispatch kabul kriteri #3); çift-tıklama koruması yalnızca
+ * client tarafında `busy` state'iyle. Başarılı klonlamadan sonra F7'nin
+ * düzenleme girişiyle AYNI yola (`/import?recipeId=`) yönlendiriyor — yeni
+ * bir "klon düzenleme ekranı" YOK (kural #106). */
+function CloneRecipeButton({ recipeId }: { recipeId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePress = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      // `rpc_clone_recipe` bugünkü migration'la geldi, hasat-core'un üretilmiş
+      // Database tipinde henüz yok (bkz. lib/hasat/customizeRecipe.ts'teki aynı
+      // gerekçe) — fonksiyon adı/imzası gerçek SQL ile doğrulandı.
+      const { data, error: rpcError } = await (supabase.rpc as any)("rpc_clone_recipe", {
+        p_source_recipe_id: recipeId,
+      });
+      if (rpcError || !data) throw rpcError ?? new Error("clone_failed");
+      router.push({ pathname: "/import", params: { recipeId: data as string } });
+    } catch (e) {
+      console.error("[recipe] klonlama başarısız", e);
+      setError("Tarif klonlanamadı. Tekrar dener misin?");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View>
+      <Pressable
+        onPress={() => void handlePress()}
+        disabled={busy}
+        className="rounded-full border border-white/15 px-3 py-1.5"
+        style={{ opacity: busy ? 0.6 : 1 }}
+      >
+        <Text className="text-xs font-medium text-hwhite">
+          {busy ? "Klonlanıyor…" : "📋 Bağımsız Klonla"}
+        </Text>
+      </Pressable>
+      {error && <Text className="mt-1 text-[11px] text-hred">{error}</Text>}
+    </View>
   );
 }
 

@@ -11,6 +11,13 @@ export function installRuntime() {
     "@/lib/supabase/client": "export const supabase=globalThis.__recipeClient;",
     "@/lib/hasat/queries": "export const useAuthUserId=()=>null;",
     "@/lib/hasat/session": "export const getOrCreateSessionId=()=>null;",
+    // T6 — `uuid.ts` yalnızca `react-native-get-random-values` (CJS, RN-özel)
+    // üzerinden çalışıyor; bu Node testinde `session.ts`'in AsyncStorage'ı gibi
+    // gerçek RN modülü yok. Testler idempotency_key'in Faz A/B arasında AYNI
+    // kaldığını doğruluyor, gerçek rastgeleliği değil — deterministik sahte
+    // UUID'ler yeterli.
+    "@/lib/hasat/uuid":
+      "let n=0; export function uuidv4(){ n+=1; return `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`; }",
     "@/lib/net/useIsOffline": "export const useIsOffline=()=>globalThis.__offline ?? false;",
     "expo-sqlite": "export const openDatabaseAsync=async()=>globalThis.__recipeDb;",
   };
