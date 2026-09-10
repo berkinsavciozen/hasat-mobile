@@ -85,6 +85,34 @@ test("list refresh updates filter facts, preserves nutrition and carries equipme
   await cache.cacheRecipeDetail(detail(unavailable), steps, ingredients);
   assert.deepEqual(mapRecipeFacts((await cache.getCachedRecipeDetail("fixture-recipe")).recipe), unavailable);
 });
+test("all 12 controlled allergens survive cache/offline hydration while unknown stays fail-closed", async () => {
+  const twelve = [
+    "gluten", "laktoz", "yumurta", "findik-yerfistigi", "agac-kuruyemisi", "soya",
+    "susam", "deniz-urunu", "hardal", "kereviz", "sulfit", "lupin",
+  ];
+  await cache.cacheRecipeDetail(detail({
+    ...allergenFixtures.reviewed_with_labels,
+    allergen_labels: twelve,
+  }), steps, ingredients);
+  const hydrated = (await cache.getCachedRecipeDetail("fixture-recipe")).recipe;
+  assert.deepEqual(getReviewedAllergens(hydrated).labels, twelve);
+  assert.equal(matchesRecipeFilters(hydrated, {
+    ...EMPTY_RECIPE_FILTERS,
+    excludedAllergens: ["hardal"],
+    equipment: [],
+  }, { coverageAvailable: false }), false);
+
+  await cache.cacheRecipeDetail(detail({
+    ...allergenFixtures.reviewed_with_labels,
+    allergen_labels: ["future-thirteenth-allergen"],
+  }), steps, ingredients);
+  const unknown = (await cache.getCachedRecipeDetail("fixture-recipe")).recipe;
+  assert.equal(getReviewedAllergens(unknown).reviewState, "unreviewed");
+  assert.equal(matchesRecipeFilters(unknown, {
+    ...EMPTY_RECIPE_FILTERS,
+    excludedAllergens: ["gluten"],
+  }, { coverageAvailable: false }), false);
+});
 test("detail replacement is atomic when a step write fails", async () => {
   await cache.cacheRecipeDetail(detail(nutritionFixtures.computed), steps, ingredients);
   injectedFailure = true;

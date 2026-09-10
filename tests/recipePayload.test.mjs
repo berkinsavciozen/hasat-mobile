@@ -64,7 +64,7 @@ test("allergen review fails closed and never confuses null with reviewed empty",
     { allergen_labels: ["gluten", "gluten"] }]) {
     assert.deepEqual(getReviewedAllergens({ ...allergenFixtures.reviewed_with_labels, ...delta }), { reviewState: "unreviewed", labels: null });
   }
-  assert.equal(getReviewedAllergens({ ...allergenFixtures.reviewed_with_labels, allergen_labels: [...ALLERGEN_SLUGS] }).labels.length, 7);
+  assert.equal(getReviewedAllergens({ ...allergenFixtures.reviewed_with_labels, allergen_labels: [...ALLERGEN_SLUGS] }).labels.length, 12);
 });
 test("real list query carries only C4 filter fields and maps nullable values", async () => {
   const listRow = recipeRow(allergenFixtures.reviewed_with_labels);
