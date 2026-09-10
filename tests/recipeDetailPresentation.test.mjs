@@ -9,7 +9,23 @@ import {
 } from "./recipeFacts.fixtures.mjs";
 
 installRuntime();
+const facts = await import("../src/lib/hasat/recipeFacts.ts");
 const presentation = await import("../src/lib/hasat/recipeDetailPresentation.ts");
+
+const EXPECTED_ALLERGEN_OPTIONS = [
+  ["gluten", "Gluten"],
+  ["laktoz", "Laktoz"],
+  ["yumurta", "Yumurta"],
+  ["findik-yerfistigi", "Fındık / yer fıstığı"],
+  ["agac-kuruyemisi", "Diğer ağaç kuruyemişleri"],
+  ["soya", "Soya"],
+  ["susam", "Susam"],
+  ["deniz-urunu", "Deniz ürünü"],
+  ["hardal", "Hardal"],
+  ["kereviz", "Kereviz"],
+  ["sulfit", "Sülfit"],
+  ["lupin", "Lupin"],
+];
 
 const withServings = (facts, servings = 4) => ({ ...facts, servings });
 
@@ -101,7 +117,11 @@ test("stale_reference never creates a stale/recalculating presentation state", (
   assert.doesNotMatch(JSON.stringify(model), /yeniden hesap|recalculating/i);
 });
 
-test("allergen presentation covers one/seven labels, reviewed-empty and fail-closed unreviewed", () => {
+test("allergen presentation derives all 12 labels from the shared controlled options", () => {
+  assert.deepEqual(
+    facts.ALLERGEN_OPTIONS.map(({ slug, label }) => [slug, label]),
+    EXPECTED_ALLERGEN_OPTIONS,
+  );
   const one = presentation.buildAllergenPresentation({
     ...allergenFixtures.reviewed_with_labels,
     allergen_labels: ["gluten"],
@@ -111,19 +131,28 @@ test("allergen presentation covers one/seven labels, reviewed-empty and fail-clo
     labels: ["Gluten"],
     message: "İşaretlenenler:",
   });
-  const seven = presentation.buildAllergenPresentation({
+  const twelve = presentation.buildAllergenPresentation({
     ...allergenFixtures.reviewed_with_labels,
-    allergen_labels: [
-      "gluten",
-      "laktoz",
-      "yumurta",
-      "findik-yerfistigi",
-      "soya",
-      "susam",
-      "deniz-urunu",
-    ],
+    allergen_labels: EXPECTED_ALLERGEN_OPTIONS.map(([slug]) => slug),
   });
-  assert.deepEqual(seven.labels, presentation.CONTROLLED_ALLERGEN_LABELS);
+  assert.deepEqual(
+    twelve.labels,
+    EXPECTED_ALLERGEN_OPTIONS.map(([, label]) => label),
+  );
+  assert.deepEqual(twelve.labels, presentation.CONTROLLED_ALLERGEN_LABELS);
+
+  for (const [slug, label] of EXPECTED_ALLERGEN_OPTIONS.slice(4).filter(
+    ([candidate]) => !["soya", "susam", "deniz-urunu"].includes(candidate),
+  )) {
+    const single = presentation.buildAllergenPresentation({
+      ...allergenFixtures.reviewed_with_labels,
+      allergen_labels: [slug],
+    });
+    assert.deepEqual(single.labels, [label], slug);
+  }
+});
+
+test("allergen presentation keeps reviewed-empty distinct and fails closed", () => {
   assert.deepEqual(
     presentation.buildAllergenPresentation(
       allergenFixtures.reviewed_without_labels,
@@ -143,6 +172,26 @@ test("allergen presentation covers one/seven labels, reviewed-empty and fail-clo
       message: "Alerjen bilgisi henüz doğrulanmadı.",
     },
   );
+  assert.deepEqual(
+    presentation.buildAllergenPresentation({
+      ...allergenFixtures.reviewed_with_labels,
+      allergen_labels: ["future-thirteenth-allergen"],
+    }),
+    {
+      state: "unreviewed",
+      labels: null,
+      message: "Alerjen bilgisi henüz doğrulanmadı.",
+    },
+  );
+});
+
+test("detail presentation imports the shared label map instead of declaring a second map", async () => {
+  const source = await readFile(
+    new URL("../src/lib/hasat/recipeDetailPresentation.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /import \{[\s\S]*ALLERGEN_LABELS,[\s\S]*\} from "\.\/recipeFacts"/);
+  assert.doesNotMatch(source, /const ALLERGEN_LABELS\s*=/);
 });
 
 test("native layout keeps public information order and accessible, reflow-safe semantics", async () => {

@@ -5,6 +5,7 @@ import { installRuntime } from "./recipeTestRuntime.mjs";
 import { allergenFixtures, recipeRow } from "./recipeFacts.fixtures.mjs";
 
 installRuntime();
+const { ALLERGEN_OPTIONS } = await import("../src/lib/hasat/recipeFacts.ts");
 const {
   EMPTY_RECIPE_FILTERS,
   EQUIPMENT_OPTIONS,
@@ -22,6 +23,26 @@ function recipe(overrides = {}) {
 }
 
 const availability = { coverageAvailable: true, availableCount: 2 };
+
+test("filter exposes the exact 12-slug shared mobile/web taxonomy", () => {
+  assert.deepEqual(
+    ALLERGEN_OPTIONS.map(({ slug, label }) => [slug, label]),
+    [
+      ["gluten", "Gluten"],
+      ["laktoz", "Laktoz"],
+      ["yumurta", "Yumurta"],
+      ["findik-yerfistigi", "Fındık / yer fıstığı"],
+      ["agac-kuruyemisi", "Diğer ağaç kuruyemişleri"],
+      ["soya", "Soya"],
+      ["susam", "Susam"],
+      ["deniz-urunu", "Deniz ürünü"],
+      ["hardal", "Hardal"],
+      ["kereviz", "Kereviz"],
+      ["sulfit", "Sülfit"],
+      ["lupin", "Lupin"],
+    ],
+  );
+});
 
 test("allergen exclusion is multi-select AND and fails closed for every untrusted shape", () => {
   const selected = { ...EMPTY_RECIPE_FILTERS, excludedAllergens: ["laktoz", "soya"] };
@@ -42,6 +63,22 @@ test("reviewed-empty is trusted but never presented as a safety claim", () => {
   const filters = { ...EMPTY_RECIPE_FILTERS, excludedAllergens: ["gluten"] };
   assert.equal(matchesRecipeFilters(recipe(), filters, availability), true);
   assert.equal(matchesRecipeFilters(recipe({ allergens_reviewed: false }), filters, availability), false);
+});
+
+test("each newly controlled slug participates in fail-closed AND-exclusion", () => {
+  for (const slug of ["agac-kuruyemisi", "hardal", "kereviz", "sulfit", "lupin"]) {
+    const filters = { ...EMPTY_RECIPE_FILTERS, excludedAllergens: [slug] };
+    assert.equal(
+      matchesRecipeFilters(recipe({ allergen_labels: [slug] }), filters, availability),
+      false,
+      slug,
+    );
+    assert.equal(
+      matchesRecipeFilters(recipe({ allergen_labels: ["gluten"] }), filters, availability),
+      true,
+      slug,
+    );
+  }
 });
 
 test("equipment uses the exact web taxonomy and requires every selected slug", () => {
@@ -80,6 +117,27 @@ test("all groups compose and active count/clear include both new multi-select gr
   assert.deepEqual(EMPTY_RECIPE_FILTERS.equipment, []);
 });
 
+test("new allergen slugs compose with multi-equipment selection", () => {
+  const filters = {
+    ...EMPTY_RECIPE_FILTERS,
+    excludedAllergens: ["agac-kuruyemisi", "hardal"],
+    equipment: ["firin", "blender"],
+  };
+  const matching = recipe({
+    allergen_labels: ["kereviz"],
+    required_equipment: ["firin", "blender"],
+  });
+  assert.equal(matchesRecipeFilters(matching, filters, availability), true);
+  assert.equal(
+    matchesRecipeFilters({ ...matching, allergen_labels: ["hardal"] }, filters, availability),
+    false,
+  );
+  assert.equal(
+    matchesRecipeFilters({ ...matching, required_equipment: ["firin"] }, filters, availability),
+    false,
+  );
+});
+
 test("native filter sheet preserves modal, Dynamic Type, safe-area and screen-reader contracts", async () => {
   const sheet = await readFile(
     new URL("../src/components/hasat/RecipeFilterSheet.tsx", import.meta.url),
@@ -94,4 +152,5 @@ test("native filter sheet preserves modal, Dynamic Type, safe-area and screen-re
   assert.match(sheet, /accessibilityRole="header"/);
   assert.doesNotMatch(sheet, /allowFontScaling=\{false\}|numberOfLines=/);
   assert.match(home, /Doğrulanmamış alerjen bilgisine sahip tarifler bu filtrede gösterilmez\./);
+  assert.match(sheet, /ALLERGEN_OPTIONS\.map/);
 });

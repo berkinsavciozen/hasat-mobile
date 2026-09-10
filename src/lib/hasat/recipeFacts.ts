@@ -53,12 +53,17 @@ export const ALLERGEN_OPTIONS = [
   { slug: "laktoz", label: "Laktoz" },
   { slug: "yumurta", label: "Yumurta" },
   { slug: "findik-yerfistigi", label: "Fındık / yer fıstığı" },
+  { slug: "agac-kuruyemisi", label: "Diğer ağaç kuruyemişleri" },
   { slug: "soya", label: "Soya" },
   { slug: "susam", label: "Susam" },
   { slug: "deniz-urunu", label: "Deniz ürünü" },
+  { slug: "hardal", label: "Hardal" },
+  { slug: "kereviz", label: "Kereviz" },
+  { slug: "sulfit", label: "Sülfit" },
+  { slug: "lupin", label: "Lupin" },
 ] as const;
 export const ALLERGEN_SLUGS = ALLERGEN_OPTIONS.map(({ slug }) => slug);
-export type AllergenSlug = (typeof ALLERGEN_SLUGS)[number];
+export type AllergenSlug = (typeof ALLERGEN_OPTIONS)[number]["slug"];
 export const ALLERGEN_LABELS = Object.fromEntries(
   ALLERGEN_OPTIONS.map(({ slug, label }) => [slug, label]),
 ) as Record<AllergenSlug, string>;
