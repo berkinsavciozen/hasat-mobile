@@ -45,7 +45,9 @@ const RECIPE_BASE_COLUMNS =
 const RECIPE_LIST_COLUMNS =
   `${RECIPE_BASE_COLUMNS}, allergen_labels, allergens_reviewed, allergens_reviewed_at` as const;
 
-const RECIPE_DETAIL_COLUMNS = `${RECIPE_BASE_COLUMNS}, ${RECIPE_FACT_COLUMNS}` as const;
+// `author_type` yalnızca detayda seçiliyor — T6/F11 CTA uygunluğu (kaynak
+// tarif `author_type <> 'kullanici'` olmalı) için, bkz. hasat/types.ts.
+const RECIPE_DETAIL_COLUMNS = `${RECIPE_BASE_COLUMNS}, ${RECIPE_FACT_COLUMNS}, author_type` as const;
 
 /** Web'deki `attachCoverFallback`'in birebir aynısı — kapak fotoğrafı yoksa
  * (P23-M3 itibarıyla 18/18 NULL) ilk ana malzemenin crop görseline, o da

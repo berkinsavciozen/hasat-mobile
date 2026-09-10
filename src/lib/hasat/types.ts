@@ -23,6 +23,12 @@ export interface RecipeListItem {
   allergens_reviewed_at: string | null;
   displayPhotoUrl: string | null;
   isRepresentativePhoto: boolean;
+  /** T6/F11 — yalnızca detay sorgusunda dolu gelir (liste/offline önbellek
+   * çekmez, bu yüzden opsiyonel): "AI ile Özelleştir"/"Bağımsız Klonla" CTA'ları
+   * yalnızca `author_type <> 'kullanici'` olan (editoryal/otomasyon) tariflerde
+   * gösterilir — RPC'lerin kendi sunucu-taraflı uygunluk kontrolüyle aynı kural
+   * (bkz. rpc_create_ai_customized_recipe/rpc_clone_recipe). */
+  author_type?: string | null;
 }
 
 export type RecipeDetail = RecipeListItem & RecipeFacts;
