@@ -67,6 +67,13 @@
           "color": "#C8833B",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "hasat-xc",
+          "project": "react-native"
+        }
       ]
     ],
     "experiments": {
