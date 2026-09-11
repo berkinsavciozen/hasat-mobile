@@ -35,45 +35,48 @@ async function runInputNormalizer(env) {
   }
 }
 
-test("TestFlight inputs are trimmed and validated before checkout", async () => {
-  const sha = "00b7fb377818536384d93d5fb659a19c161a9547";
+test("the sole TestFlight input is trimmed and validated before checkout", async () => {
   const accepted = await runInputNormalizer({
-    RELEASE_REF_RAW: " main ",
-    EXPECTED_SHA_RAW: ` ${sha} `,
     LATEST_ASC_BUILD_NUMBER_RAW: " 7 ",
   });
   assert.equal(accepted.status, 0, accepted.stderr);
-  assert.match(accepted.output, /^release_ref=main$/m);
-  assert.match(accepted.output, new RegExp(`^expected_sha=${sha}$`, "m"));
   assert.match(accepted.output, /^latest_asc_build_number=7$/m);
 
   for (const value of ["7.0", "7.5", "-1", "", "07", "NaN"]) {
     const rejected = await runInputNormalizer({
-      RELEASE_REF_RAW: "main",
-      EXPECTED_SHA_RAW: sha,
       LATEST_ASC_BUILD_NUMBER_RAW: value,
     });
     assert.notEqual(rejected.status, 0, `${JSON.stringify(value)} must fail`);
   }
-
-  const badSha = await runInputNormalizer({
-    RELEASE_REF_RAW: "main",
-    EXPECTED_SHA_RAW: "ABC",
-    LATEST_ASC_BUILD_NUMBER_RAW: "7",
-  });
-  assert.notEqual(badSha.status, 0);
 });
 
-test("TestFlight workflow is manual, ref-pinned, and repository-pinned", async () => {
+test("TestFlight workflow is manual, main-pinned, SHA-pinned, and repository-pinned", async () => {
   const workflow = await readFile(workflowUrl, "utf8");
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s+(push|pull_request):/m);
-  assert.match(workflow, /release_ref:/);
-  assert.match(workflow, /expected_sha:/);
-  assert.match(workflow, /ref: \$\{\{ steps\.normalized_inputs\.outputs\.release_ref \}\}/);
+  assert.doesNotMatch(workflow, /release_ref/);
+  assert.doesNotMatch(workflow, /expected_sha/);
+  assert.match(workflow, /ref: refs\/heads\/main/);
   assert.match(workflow, /berkinsavciozen\/hasat-mobile/);
   assert.match(workflow, /RESOLVED_SHA.*git rev-parse HEAD/);
-  assert.match(workflow, /RESOLVED_SHA.*EXPECTED_SHA/);
+  assert.match(workflow, /grep -Eq '\^\[0-9a-f\]\{40\}\$'/);
+  assert.match(workflow, /CURRENT_SHA.*git rev-parse HEAD/);
+  assert.match(workflow, /CURRENT_SHA.*RESOLVED_SHA/);
+});
+
+test("TestFlight job summary reports the resolved release coordinates", async () => {
+  const workflow = await readFile(workflowUrl, "utf8");
+  for (const label of [
+    "Repository:",
+    "Branch: main",
+    "Full commit SHA:",
+    "App version:",
+    "EAS remote build counter:",
+    "Expected new build number:",
+    "Latest ASC build number (operator supplied):",
+  ]) {
+    assert.match(workflow, new RegExp(label.replace(/[()]/g, "\\$&")));
+  }
 });
 
 test("TestFlight releases serialize without cancelling an active upload", async () => {
