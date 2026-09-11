@@ -1,18 +1,10 @@
 name: EAS TestFlight Build + Submit (iOS)
 
 # TestFlight is a release operation, not PR validation. It is manual-only and
-# requires both an explicit repository ref and its expected full commit SHA.
+# always releases the main HEAD resolved by this job's checkout.
 on:
   workflow_dispatch:
     inputs:
-      release_ref:
-        description: "Repository branch, tag, or commit to release"
-        required: true
-        type: string
-      expected_sha:
-        description: "Expected full 40-character commit SHA for release_ref"
-        required: true
-        type: string
       latest_asc_build_number:
         description: "Latest iOS build number already present in App Store Connect"
         required: true
@@ -36,31 +28,15 @@ jobs:
       - name: Workflow girdilerini normalize et
         id: normalized_inputs
         env:
-          RELEASE_REF_RAW: ${{ inputs.release_ref }}
-          EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           LATEST_ASC_BUILD_NUMBER_RAW: ${{ inputs.latest_asc_build_number }}
         run: |
           set -euo pipefail
           node <<'NODE'
           const fs = require("fs");
 
-          const releaseRef = (process.env.RELEASE_REF_RAW ?? "").trim();
-          const expectedSha = (process.env.EXPECTED_SHA_RAW ?? "").trim();
           const latestAscBuildNumber =
             (process.env.LATEST_ASC_BUILD_NUMBER_RAW ?? "").trim();
 
-          if (!releaseRef || /[\u0000-\u001f\u007f]/.test(releaseRef)) {
-            console.error(
-              "Refusing release: release_ref must be a non-empty single-line ref.",
-            );
-            process.exit(1);
-          }
-          if (!/^[0-9a-f]{40}$/.test(expectedSha)) {
-            console.error(
-              "Refusing release: expected_sha must be a full lowercase commit SHA.",
-            );
-            process.exit(1);
-          }
           if (!/^(0|[1-9][0-9]*)$/.test(latestAscBuildNumber)) {
             console.error(
               "Preflight failed: latest App Store Connect build number must be a canonical non-negative integer.",
@@ -71,42 +47,33 @@ jobs:
           fs.appendFileSync(
             process.env.GITHUB_OUTPUT,
             [
-              `release_ref=${releaseRef}`,
-              `expected_sha=${expectedSha}`,
               `latest_asc_build_number=${latestAscBuildNumber}`,
               "",
             ].join("\n"),
           );
           NODE
 
-      - name: Seçilen ref'i checkout et
+      - name: main HEAD'i checkout et
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.normalized_inputs.outputs.release_ref }}
+          ref: refs/heads/main
           fetch-depth: 0
 
-      - name: Release kaynağını doğrula
+      - name: Release kaynağını çöz ve doğrula
         id: release_source
-        env:
-          RELEASE_REF: ${{ steps.normalized_inputs.outputs.release_ref }}
-          EXPECTED_SHA: ${{ steps.normalized_inputs.outputs.expected_sha }}
         run: |
           set -euo pipefail
           if [ "$GITHUB_REPOSITORY" != "berkinsavciozen/hasat-mobile" ]; then
             echo "Refusing release: unexpected repository." >&2
             exit 1
           fi
-          if ! printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo "Refusing release: expected_sha must be a full lowercase commit SHA." >&2
-            exit 1
-          fi
           RESOLVED_SHA="$(git rev-parse HEAD)"
-          if [ "$RESOLVED_SHA" != "$EXPECTED_SHA" ]; then
-            echo "Refusing release: selected ref does not resolve to expected_sha." >&2
+          if ! printf '%s' "$RESOLVED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Refusing release: main HEAD must resolve to a full lowercase commit SHA." >&2
             exit 1
           fi
           echo "Repository: $GITHUB_REPOSITORY"
-          echo "Selected ref: $RELEASE_REF"
+          echo "Branch: main"
           echo "Full commit SHA: $RESOLVED_SHA"
           echo "EAS profile: $EAS_PROFILE"
           echo "resolved_sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
@@ -164,8 +131,15 @@ jobs:
           echo "next_build_number=$NEXT_BUILD_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: EAS TestFlight build + exact auto-submit
+        env:
+          RESOLVED_SHA: ${{ steps.release_source.outputs.resolved_sha }}
         run: |
           set -euo pipefail
+          CURRENT_SHA="$(git rev-parse HEAD)"
+          if [ "$CURRENT_SHA" != "$RESOLVED_SHA" ]; then
+            echo "Refusing release: checkout moved after main HEAD was resolved." >&2
+            exit 1
+          fi
           eas build \
             --profile "$EAS_PROFILE" \
             --platform ios \
@@ -177,22 +151,23 @@ jobs:
       - name: Release özetini yaz
         if: always()
         env:
-          RELEASE_REF: ${{ steps.normalized_inputs.outputs.release_ref }}
           RESOLVED_SHA: ${{ steps.release_source.outputs.resolved_sha }}
           APP_VERSION: ${{ steps.version_preflight.outputs.app_version }}
           REMOTE_BUILD_NUMBER: ${{ steps.version_preflight.outputs.remote_build_number }}
           NEXT_BUILD_NUMBER: ${{ steps.version_preflight.outputs.next_build_number }}
+          LATEST_ASC_BUILD_NUMBER: ${{ steps.normalized_inputs.outputs.latest_asc_build_number }}
         run: |
           {
             echo '## EAS TestFlight Build + Submit (iOS)'
             echo ''
             echo "- Repository: $GITHUB_REPOSITORY"
-            echo "- Selected ref: $RELEASE_REF"
+            echo "- Branch: main"
             echo "- Full commit SHA: $RESOLVED_SHA"
             echo "- EAS profile: $EAS_PROFILE"
-            if [ -n "$APP_VERSION" ]; then echo "- App version: $APP_VERSION"; fi
-            if [ -n "$REMOTE_BUILD_NUMBER" ]; then echo "- Preflight remote counter: $REMOTE_BUILD_NUMBER"; fi
-            if [ -n "$NEXT_BUILD_NUMBER" ]; then echo "- Expected build number: $NEXT_BUILD_NUMBER"; fi
+            echo "- App version: ${APP_VERSION:-unavailable}"
+            echo "- EAS remote build counter: ${REMOTE_BUILD_NUMBER:-unavailable}"
+            echo "- Expected new build number: ${NEXT_BUILD_NUMBER:-unavailable}"
+            echo "- Latest ASC build number (operator supplied): ${LATEST_ASC_BUILD_NUMBER:-unavailable}"
             echo ''
             echo 'Submission is coupled to this run with EAS build auto-submit; no latest-build lookup is used.'
           } >> "$GITHUB_STEP_SUMMARY"
