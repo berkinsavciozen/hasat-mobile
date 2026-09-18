@@ -16,6 +16,7 @@
 // Client bir kere üretir (`newIdempotencyKey`), ekran state'inde tutar.
 import { supabase } from "@/lib/supabase/client";
 import { uuidv4 } from "@/lib/hasat/uuid";
+import type { Json } from "@/lib/core/db/types";
 
 export class CustomizeRecipeError extends Error {
   code: string;
@@ -185,12 +186,21 @@ export async function saveCustomization(input: {
   sourceRecipeId: string;
   draft: CustomizeDraft;
 }): Promise<string> {
-  // `rpc_create_ai_customized_recipe` bugünkü migration'la geldi, hasat-core'un
-  // üretilmiş Database tipinde henüz yok (senkron PR'ı ayrı akar — kural
-  // #105/#111, bkz. import.ts'teki `ingredient_class` ile aynı gerekçe).
-  // Fonksiyon adı ve imza gerçek SQL ile doğrulandı (Supabase MCP,
-  // pg_get_functiondef) — bu yüzden yalnızca bu çağrı `as any` ile geçiyor.
-  const { data, error } = await (supabase.rpc as any)("rpc_create_ai_customized_recipe", {
+  const ingredients: Json = input.draft.ingredients.map((ingredient) => ({
+    crop: ingredient.crop,
+    freeTextName: ingredient.freeTextName,
+    quantity: ingredient.quantity,
+    unit: ingredient.unit,
+    note: ingredient.note,
+    isKeyIngredient: ingredient.isKeyIngredient,
+    sortOrder: ingredient.sortOrder,
+  }));
+  const steps: Json = input.draft.steps.map((step) => ({
+    stepNo: step.stepNo,
+    instruction: step.instruction,
+    timerSeconds: step.timerSeconds,
+  }));
+  const { data, error } = await supabase.rpc("rpc_create_ai_customized_recipe", {
     p_idempotency_key: input.idempotencyKey,
     p_source_recipe_id: input.sourceRecipeId,
     p_title: input.draft.title,
@@ -200,8 +210,8 @@ export async function saveCustomization(input: {
     p_cook_minutes: input.draft.cookMinutes,
     p_rest_minutes: input.draft.restMinutes,
     p_difficulty: input.draft.difficulty,
-    p_ingredients: input.draft.ingredients,
-    p_steps: input.draft.steps,
+    p_ingredients: ingredients,
+    p_steps: steps,
   });
 
   if (error || !data) {
@@ -219,5 +229,5 @@ export async function saveCustomization(input: {
     throw new CustomizeRecipeError("save_failed", messageForCode("save_failed"));
   }
 
-  return data as string;
+  return data;
 }

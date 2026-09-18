@@ -16,7 +16,7 @@
 // gösterilmesi (`estimateMeta` state'i, aşağıda). YouTube/link importu hâlâ
 // KAPSAM DIŞI (M9, ayrı bir hukuki kontrol maddesi) — edge function'lar
 // `mode`/görsel dışında bir kaynak kabul etmiyor.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
@@ -40,6 +40,10 @@ import { useIsOffline } from "@/lib/net/useIsOffline";
 import { CropPickerModal } from "@/components/hasat/CropPickerModal";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 import { useHasatMobileSession } from "@/lib/store/session";
+import {
+  createRetryOperationKeyStore,
+  PrivateRecipeMutationError,
+} from "@/lib/hasat/privateRecipeMutations";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
@@ -67,6 +71,7 @@ export default function ImportScreen() {
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hasVersionConflict, setHasVersionConflict] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [cropPickerForKey, setCropPickerForKey] = useState<string | null>(null);
   // P23-M8-d (T4) — adım fotoğrafı yüklenirken hangi adımın "yükleniyor"
@@ -74,6 +79,8 @@ export default function ImportScreen() {
   // seçilebilir, ImagePicker zaten modal — çakışma riski yok).
   const [uploadingStepKey, setUploadingStepKey] = useState<string | null>(null);
   const userId = useHasatMobileSession((s) => s.user?.id);
+  const createOperationKeys = useRef(createRetryOperationKeyStore());
+  const updateOperationKeys = useRef(createRetryOperationKeyStore());
   // T7a — yalnızca fotoğraftan-tahmin akışında dolu; review'da disclaimer'ı
   // BELİRGİN göstermek için (kabul kriteri #1/#2). Normal AI import'ta null.
   const [estimateMeta, setEstimateMeta] = useState<{
@@ -105,15 +112,23 @@ export default function ImportScreen() {
       setError(null);
       setEstimateMeta(null);
       setStage("loading");
+      const operationIdentity = JSON.stringify({
+        kind: "extract",
+        ...input,
+        recipeName: recipeName.trim(),
+      });
+      const operationKey = createOperationKeys.current.acquire(operationIdentity);
       try {
         const result = await extractRecipe({
           mode: input.mode,
+          operationKey,
           text: input.text,
           imageBase64: input.base64,
           imageMime: input.mime,
           recipeName: recipeName.trim() || undefined,
         });
         const loaded = await loadDraft(result.recipeId);
+        createOperationKeys.current.succeed(operationIdentity, operationKey);
         setDraft(loaded);
         setStage("review");
       } catch (e) {
@@ -131,13 +146,21 @@ export default function ImportScreen() {
     async (input: { base64: string; mime: string }) => {
       setError(null);
       setStage("loading");
+      const operationIdentity = JSON.stringify({
+        kind: "photo-estimate",
+        ...input,
+        recipeName: recipeName.trim(),
+      });
+      const operationKey = createOperationKeys.current.acquire(operationIdentity);
       try {
         const result = await estimateRecipeFromPhoto({
+          operationKey,
           imageBase64: input.base64,
           imageMime: input.mime,
           recipeName: recipeName.trim() || undefined,
         });
         const loaded = await loadDraft(result.recipeId);
+        createOperationKeys.current.succeed(operationIdentity, operationKey);
         setDraft(loaded);
         setEstimateMeta({ disclaimer: result.disclaimer, uncertainNotes: result.uncertainNotes });
         setStage("review");
@@ -362,14 +385,25 @@ export default function ImportScreen() {
           <Pressable
             disabled={saving}
             onPress={async () => {
-              setSaving(true);
               setError(null);
+              setHasVersionConflict(false);
+              if (isOffline) {
+                setError("Kaydetmek için internet bağlantısı gerekiyor. Bağlantı gelince tekrar dene.");
+                return;
+              }
+              setSaving(true);
               try {
-                await saveDraft(draft);
-                await queryClient.invalidateQueries({ queryKey: MY_RECIPES_QUERY_KEY });
+                const savedDraft = await saveDraft(draft, updateOperationKeys.current);
+                setDraft(savedDraft);
+                void queryClient.invalidateQueries({ queryKey: MY_RECIPES_QUERY_KEY });
                 setStage("saved");
               } catch (e) {
-                setError("Kaydedilemedi. Bağlantını kontrol edip tekrar dene.");
+                if (e instanceof PrivateRecipeMutationError) {
+                  setError(e.message);
+                  setHasVersionConflict(e.code === "version_conflict");
+                } else {
+                  setError("Kaydedilemedi. Bağlantını kontrol edip tekrar dene.");
+                }
               } finally {
                 setSaving(false);
               }
@@ -684,6 +718,26 @@ export default function ImportScreen() {
           ))}
 
           {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
+          {hasVersionConflict && (
+            <Pressable
+              className="mt-3 self-start rounded-full border border-saffron px-3 py-2"
+              onPress={async () => {
+                setSaving(true);
+                try {
+                  const loaded = await loadDraft(draft.recipeId);
+                  setDraft(loaded);
+                  setHasVersionConflict(false);
+                  setError(null);
+                } catch {
+                  setError("Güncel tarif yüklenemedi. Bağlantını kontrol edip tekrar dene.");
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              <Text className="text-xs font-medium text-saffron">Güncel halini yeniden yükle</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingScreen>
     );

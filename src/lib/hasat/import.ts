@@ -17,6 +17,10 @@
 // kişisel deftere düşen bir TASLAK, kullanıcı onaylamadan hiçbir yere
 // (public korpusa asla) gitmiyor, "Vazgeç" derse taslak siliniyor.
 import { supabase } from "@/lib/supabase/client";
+import {
+  updatePrivateRecipe,
+  type RetryOperationKeyStore,
+} from "@/lib/hasat/privateRecipeMutations";
 
 /** Şartnamedeki eşik (P23-Mobile-Visual-Spec.md → "3c"): altındaysa kullanıcıya
  * "emin değiliz, kontrol et" uyarısı gösterilir, alan BLOKLANMAZ. */
@@ -57,7 +61,11 @@ function messageForCode(code: string): string {
     case "ai_bad_output":
       return "Tarif okunamadı. Biraz sonra tekrar dener misin?";
     case "unauthorized":
+    case "authentication_required":
       return "Tarif eklemek için giriş yapmalısın.";
+    case "idempotency_conflict":
+    case "private_recipe_idempotency_conflict":
+      return "Bu tarif isteği artık geçerli değil. İçeriği kontrol edip yeniden dene.";
     case "invalid_mode":
       return "Bu içerik türü henüz desteklenmiyor.";
     case "insert_failed":
@@ -81,6 +89,7 @@ export interface ExtractionResult {
 
 export async function extractRecipe(input: {
   mode: ImportMode;
+  operationKey: string;
   text?: string;
   imageBase64?: string;
   imageMime?: string;
@@ -92,12 +101,18 @@ export async function extractRecipe(input: {
 }): Promise<ExtractionResult> {
   const body =
     input.mode === "text"
-      ? { mode: "text", text: input.text ?? "", recipe_name: input.recipeName || undefined }
+      ? {
+          mode: "text",
+          text: input.text ?? "",
+          recipe_name: input.recipeName || undefined,
+          operation_key: input.operationKey,
+        }
       : {
           mode: "photo",
           image_base64: input.imageBase64 ?? "",
           image_mime: input.imageMime,
           recipe_name: input.recipeName || undefined,
+          operation_key: input.operationKey,
         };
 
   const { data, error } = await supabase.functions.invoke("extract-recipe", { body });
@@ -202,15 +217,16 @@ export interface DraftStep {
 
 export interface RecipeDraft {
   recipeId: string;
+  privateEditVersion: number;
   title: string;
+  description: string | null;
   servings: string;
   prepMinutes: string;
   cookMinutes: string;
+  restMinutes: string;
+  difficulty: string | null;
   extractionConfidence: number | null;
   ingredients: DraftIngredient[];
-  /** Yükleme anında DB'de var olan malzeme id'leri — saveDraft bunu güncel
-   * `ingredients` listesiyle karşılaştırıp kullanıcının sildiği satırları bulur. */
-  initialIngredientIds: string[];
   steps: DraftStep[];
 }
 
@@ -229,7 +245,9 @@ export async function loadDraft(recipeId: string): Promise<RecipeDraft> {
     await Promise.all([
       supabase
         .from("recipes")
-        .select("id, title, servings, prep_minutes, cook_minutes, extraction_confidence")
+        .select(
+          "id, title, description, servings, prep_minutes, cook_minutes, rest_minutes, difficulty, extraction_confidence, private_edit_version",
+        )
         .eq("id", recipeId)
         .single(),
       supabase
@@ -264,10 +282,14 @@ export async function loadDraft(recipeId: string): Promise<RecipeDraft> {
 
   return {
     recipeId,
+    privateEditVersion: recipe.private_edit_version,
     title: recipe.title ?? "",
+    description: recipe.description,
     servings: numToStr(recipe.servings),
     prepMinutes: numToStr(recipe.prep_minutes),
     cookMinutes: numToStr(recipe.cook_minutes),
+    restMinutes: numToStr(recipe.rest_minutes),
+    difficulty: recipe.difficulty,
     extractionConfidence:
       recipe.extraction_confidence == null ? null : Number(recipe.extraction_confidence),
     ingredients: ingsTyped.map((i) => ({
@@ -281,7 +303,6 @@ export async function loadDraft(recipeId: string): Promise<RecipeDraft> {
       crop: i.crop ?? null,
       ingredientClass: i.ingredient_class ?? null,
     })),
-    initialIngredientIds: ingsTyped.map((i) => i.id),
     steps: (steps ?? []).map((s) => ({
       key: newKey("step"),
       instruction: s.instruction ?? "",
@@ -336,110 +357,50 @@ function parseNumOrNull(v: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/**
- * Kullanıcının düzelttiği taslağı yazar.
- *
- * Adım satırları hâlâ silinip yeniden yazılıyor (kısmi diff bu boyutta
- * gereksiz karmaşıklık — bkz. eski gerekçe).
- *
- * Malzeme satırları artık FARKLI: P23-M6-ek'te `recipe_ingredients` üzerine
- * bir BEFORE INSERT trigger (`trg_recipe_ingredients_auto_match_crop`) geldi.
- * Var olan satırları silip yeniden INSERT etmek, kullanıcının önizlemede
- * manuel olarak KALDIRDIĞI bir crop'un (metin aynı kaldığı için) trigger
- * tarafından sessizce yeniden bağlanmasına yol açardı — kullanıcının açık
- * "kaldır" kararı kalıcı olmazdı. Bu yüzden var olan satırlar artık UPDATE
- * ediliyor (trigger yalnızca INSERT'te çalışır, UPDATE'e karışmaz); yalnızca
- * gerçekten yeni eklenen satırlar INSERT ediliyor (crop boşsa trigger orada
- * deterministik eşleşmeyi dener — ilk import'takiyle aynı kural); kullanıcının
- * sildiği satırlar id ile DELETE ediliyor.
- * RLS bu yolların hepsinin yalnızca `owner_id = auth.uid()` için açık olduğunu
- * garanti ediyor (gerçek SQL ile doğrulandı — bkz. TODO.md → P23-M6-ek).
- */
-export async function saveDraft(draft: RecipeDraft): Promise<void> {
-  const { error: rErr } = await supabase
-    .from("recipes")
-    .update({
-      title: draft.title.trim() || "Adsız tarif",
-      servings: parseIntOrNull(draft.servings),
-      prep_minutes: parseIntOrNull(draft.prepMinutes),
-      cook_minutes: parseIntOrNull(draft.cookMinutes),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", draft.recipeId);
-  if (rErr) throw rErr;
-
-  const keptIngredients = draft.ingredients.filter((i) => i.name.trim());
-  const keptIds = new Set(keptIngredients.filter((i) => i.id).map((i) => i.id as string));
-  const removedIds = draft.initialIngredientIds.filter((id) => !keptIds.has(id));
-
-  if (removedIds.length > 0) {
-    const { error } = await supabase.from("recipe_ingredients").delete().in("id", removedIds);
-    if (error) throw error;
-  }
-
-  const existingRows = keptIngredients.filter((i) => i.id);
-  const newRows = keptIngredients.filter((i) => !i.id);
-
-  // P23-M6-ek: `ingredient_class` henüz hasat-core'un üretilmiş Database
-  // tipinde yok (senkron PR'ı ayrı akar — kural #105/#111); şemada gerçekten
-  // var ve gerçek SQL ile doğrulandı (bkz. Build/DB-Schema.md). Update/insert
-  // payload'ları bu yüzden `as any` ile geçiyor — yalnızca bu iki çağrı.
-  for (const [idx, ing] of existingRows.entries()) {
-    const { error } = await supabase
-      .from("recipe_ingredients")
-      .update({
-        sort_order: idx + 1,
-        crop: ing.crop,
-        free_text_name: ing.name.trim(),
-        quantity: parseNumOrNull(ing.quantity),
-        unit: ing.unit.trim() || null,
-        note: ing.note,
-        is_key_ingredient: ing.isKey,
-        ingredient_class: ing.ingredientClass,
-      } as any)
-      .eq("id", ing.id as string);
-    if (error) throw error;
-  }
-
-  if (newRows.length > 0) {
-    const { error } = await supabase.from("recipe_ingredients").insert(
-      newRows.map((ing, idx) => ({
-        recipe_id: draft.recipeId,
-        sort_order: existingRows.length + idx + 1,
-        crop: ing.crop,
-        free_text_name: ing.name.trim(),
-        quantity: parseNumOrNull(ing.quantity),
-        unit: ing.unit.trim() || null,
-        note: ing.note,
-        is_key_ingredient: ing.isKey,
-        ingredient_class: ing.ingredientClass,
-      })) as any,
-    );
-    if (error) throw error;
-  }
-
+/** Tarif, malzeme ve adımları tek atomik optimistic-concurrency RPC'siyle yazar. */
+export async function saveDraft(
+  draft: RecipeDraft,
+  operationKeys: RetryOperationKeyStore,
+): Promise<RecipeDraft> {
+  const ingredients = draft.ingredients
+    .filter((i) => i.name.trim())
+    .map((ing) => ({
+      crop: ing.crop,
+      free_text_name: ing.name.trim(),
+      quantity: parseNumOrNull(ing.quantity),
+      unit: ing.unit.trim() || null,
+      note: ing.note,
+      is_key_ingredient: ing.isKey,
+      ingredient_class: ing.ingredientClass,
+    }));
   const steps = draft.steps
     .filter((s) => s.instruction.trim())
-    .map((s, idx) => {
-      const minutes = parseIntOrNull(s.timerMinutes);
+    .map((step) => {
+      const minutes = parseIntOrNull(step.timerMinutes);
       return {
-        recipe_id: draft.recipeId,
-        step_no: idx + 1,
-        instruction: s.instruction.trim(),
+        instruction: step.instruction.trim(),
         timer_seconds: minutes == null ? null : minutes * 60,
-        photo_url: s.photoUrl,
+        photo_url: step.photoUrl,
       };
     });
 
-  const { error: delStepErr } = await supabase
-    .from("recipe_steps")
-    .delete()
-    .eq("recipe_id", draft.recipeId);
-  if (delStepErr) throw delStepErr;
-  if (steps.length > 0) {
-    const { error } = await supabase.from("recipe_steps").insert(steps);
-    if (error) throw error;
-  }
+  const result = await updatePrivateRecipe({
+    recipeId: draft.recipeId,
+    expectedVersion: draft.privateEditVersion,
+    operationKeys,
+    payload: {
+      title: draft.title.trim() || "Adsız tarif",
+      description: draft.description,
+      servings: parseIntOrNull(draft.servings),
+      prep_minutes: parseIntOrNull(draft.prepMinutes),
+      cook_minutes: parseIntOrNull(draft.cookMinutes),
+      rest_minutes: parseIntOrNull(draft.restMinutes),
+      difficulty: draft.difficulty,
+      ingredients,
+      steps,
+    },
+  });
+  return { ...draft, privateEditVersion: result.version };
 }
 
 /** Kullanıcı "Vazgeç" derse taslak tamamen silinir (adım/malzeme FK cascade). */

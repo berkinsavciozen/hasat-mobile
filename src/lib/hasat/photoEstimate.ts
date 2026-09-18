@@ -43,7 +43,11 @@ function messageForCode(code: string, reason?: string | null): string {
     case "ai_bad_output":
       return "Tarif tahmin edilemedi. Biraz sonra tekrar dener misin?";
     case "unauthorized":
+    case "authentication_required":
       return "Bu özelliği kullanmak için giriş yapmalısın.";
+    case "idempotency_conflict":
+    case "private_recipe_idempotency_conflict":
+      return "Bu tahmin isteği artık geçerli değil. Fotoğrafı kontrol edip yeniden dene.";
     case "insert_failed":
     case "quota_check_failed":
       return "Tarif kaydedilemedi. Biraz sonra tekrar dene.";
@@ -68,6 +72,7 @@ export interface PhotoEstimateResult {
 }
 
 export async function estimateRecipeFromPhoto(input: {
+  operationKey: string;
   imageBase64: string;
   imageMime?: string;
   recipeName?: string;
@@ -77,6 +82,7 @@ export async function estimateRecipeFromPhoto(input: {
       image_base64: input.imageBase64,
       image_mime: input.imageMime,
       recipe_name: input.recipeName || undefined,
+      operation_key: input.operationKey,
     },
   });
 
