@@ -47,6 +47,7 @@ test("başarılı tahmin: disclaimer ve uncertain_notes taşınır, istek base64
   };
 
   const result = await estimateRecipeFromPhoto({
+    operationKey: "00000000-0000-4000-8000-000000000001",
     imageBase64: "AAAA",
     imageMime: "image/jpeg",
     recipeName: "Köfte",
@@ -56,6 +57,7 @@ test("başarılı tahmin: disclaimer ve uncertain_notes taşınır, istek base64
   assert.equal(call.body.image_base64, "AAAA");
   assert.equal(call.body.image_mime, "image/jpeg");
   assert.equal(call.body.recipe_name, "Köfte");
+  assert.equal(call.body.operation_key, "00000000-0000-4000-8000-000000000001");
 
   assert.equal(result.recipeId, "recipe-9");
   assert.equal(result.disclaimer, "Bu tarif TAHMİN edilmiştir…");
@@ -77,7 +79,11 @@ test("disclaimer eksik gelirse ai_bad_output olarak fırlatılır (asla sessizce
   };
 
   await assert.rejects(
-    () => estimateRecipeFromPhoto({ imageBase64: "AAAA" }),
+    () =>
+      estimateRecipeFromPhoto({
+        operationKey: "00000000-0000-4000-8000-000000000002",
+        imageBase64: "AAAA",
+      }),
     (err) => err instanceof PhotoEstimateError && err.code === "ai_bad_output",
   );
 });
@@ -88,7 +94,11 @@ test("422 not_a_recipe reason'ı Türkçe mesaja katılır", async () => {
   responseBody = { error: "not_a_recipe", reason: "fotoğrafta çiğ malzeme görünüyor" };
 
   await assert.rejects(
-    () => estimateRecipeFromPhoto({ imageBase64: "AAAA" }),
+    () =>
+      estimateRecipeFromPhoto({
+        operationKey: "00000000-0000-4000-8000-000000000003",
+        imageBase64: "AAAA",
+      }),
     (err) =>
       err instanceof PhotoEstimateError &&
       err.code === "not_a_recipe" &&
@@ -102,7 +112,11 @@ test("429 quota_exceeded anlaşılır bir Türkçe mesaja çevrilir", async () =
   responseBody = { error: "quota_exceeded" };
 
   await assert.rejects(
-    () => estimateRecipeFromPhoto({ imageBase64: "AAAA" }),
+    () =>
+      estimateRecipeFromPhoto({
+        operationKey: "00000000-0000-4000-8000-000000000004",
+        imageBase64: "AAAA",
+      }),
     (err) =>
       err instanceof PhotoEstimateError &&
       err.code === "quota_exceeded" &&

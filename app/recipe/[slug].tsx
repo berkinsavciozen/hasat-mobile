@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
-import { supabase } from "@/lib/supabase/client";
 import {
   RepresentativePhoto,
   RepresentativeBadge,
@@ -51,6 +50,11 @@ import {
   type RecipeIngredientRow,
   type MatchedListing,
 } from "@/lib/hasat/recipes";
+import {
+  clonePrivateRecipe,
+  createRetryOperationKeyStore,
+  PrivateRecipeMutationError,
+} from "@/lib/hasat/privateRecipeMutations";
 
 /**
  * P23-M5-b tarif detayı, P23-M6-ek'te dört-durumlu malzeme kartı aksiyonlarıyla
@@ -579,31 +583,33 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
   );
 }
 
-/** F11 — "Bağımsız klonla". Backend'de idempotency YOK (bilinçli, tek-adımlı
- * bir aksiyon — dispatch kabul kriteri #3); çift-tıklama koruması yalnızca
- * client tarafında `busy` state'iyle. Başarılı klonlamadan sonra F7'nin
+/** F11 — "Bağımsız klonla". Aynı source retry'ı aynı operation key'i taşır;
+ * sunucu idempotency'si `busy` state'ine ek olarak hızlı çift dokunmayı güvenli
+ * kılar. Başarılı klonlamadan sonra F7'nin
  * düzenleme girişiyle AYNI yola (`/import?recipeId=`) yönlendiriyor — yeni
  * bir "klon düzenleme ekranı" YOK (kural #106). */
 function CloneRecipeButton({ recipeId }: { recipeId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const operationKeys = useRef(createRetryOperationKeyStore());
 
   const handlePress = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      // `rpc_clone_recipe` bugünkü migration'la geldi, hasat-core'un üretilmiş
-      // Database tipinde henüz yok (bkz. lib/hasat/customizeRecipe.ts'teki aynı
-      // gerekçe) — fonksiyon adı/imzası gerçek SQL ile doğrulandı.
-      const { data, error: rpcError } = await (supabase.rpc as any)("rpc_clone_recipe", {
-        p_source_recipe_id: recipeId,
+      const result = await clonePrivateRecipe({
+        sourceRecipeId: recipeId,
+        operationKeys: operationKeys.current,
       });
-      if (rpcError || !data) throw rpcError ?? new Error("clone_failed");
-      router.push({ pathname: "/import", params: { recipeId: data as string } });
+      router.push({ pathname: "/import", params: { recipeId: result.recipeId } });
     } catch (e) {
       console.error("[recipe] klonlama başarısız", e);
-      setError("Tarif klonlanamadı. Tekrar dener misin?");
+      setError(
+        e instanceof PrivateRecipeMutationError
+          ? e.message
+          : "Tarif klonlanamadı. Tekrar dener misin?",
+      );
       setBusy(false);
     }
   };
