@@ -24,11 +24,37 @@ globalThis.__recipeClient = createClient("https://example.test", "fixture-key", 
 
 installRuntime();
 const {
+  createManualPrivateRecipe,
   clonePrivateRecipe,
   createRetryOperationKeyStore,
   PrivateRecipeMutationError,
   updatePrivateRecipe,
 } = await import("../src/lib/hasat/privateRecipeMutations.ts");
+
+test("manuel create retry aynı operation key ile private create RPC'sini kullanır", async () => {
+  requests.length = 0;
+  let attempt = 0;
+  responder = async (_url, body) => {
+    attempt += 1;
+    if (attempt === 1)
+      return { status: 503, body: { code: "PGRST000", message: "temporary" } };
+    assert.equal(body.p_operation_type, "create_manual");
+    assert.equal(body.p_payload.visibility, undefined);
+    assert.equal(body.p_payload.status, undefined);
+    assert.equal(body.p_payload.owner_id, undefined);
+    return { status: 200, body: { recipe_id: "manual-a", version: 1 } };
+  };
+  const operationKeys = createRetryOperationKeyStore();
+
+  await assert.rejects(() =>
+    createManualPrivateRecipe({ operationKeys, title: "  Annemin tarifi  " }),
+  );
+  const result = await createManualPrivateRecipe({ operationKeys, title: "  Annemin tarifi  " });
+
+  assert.deepEqual(result, { recipeId: "manual-a", version: 1 });
+  assert.equal(requests[1].body.p_payload.title, "Annemin tarifi");
+  assert.equal(requests[0].body.p_operation_key, requests[1].body.p_operation_key);
+});
 
 const payload = (title) => ({
   title,

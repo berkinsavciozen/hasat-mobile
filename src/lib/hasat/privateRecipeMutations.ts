@@ -125,6 +125,37 @@ export async function updatePrivateRecipe(input: {
   return result;
 }
 
+export async function createManualPrivateRecipe(input: {
+  operationKeys: RetryOperationKeyStore;
+  title?: string;
+}): Promise<PrivateRecipeRpcResult> {
+  const payload: Json = {
+    title: input.title?.trim() || "Yeni tarif",
+    description: null,
+    servings: null,
+    prep_minutes: null,
+    cook_minutes: null,
+    rest_minutes: null,
+    difficulty: null,
+    ingredients: [],
+    // UX-1B create sözleşmesi en az bir çocuk ister. Bu taslak adımı editörde
+    // görünür ve kullanıcı tarafından değiştirilir; yarım bırakılırsa mevcut
+    // discard akışı taslağı tamamen siler.
+    steps: [{ instruction: "Hazırlama adımını buraya yaz.", timer_seconds: null }],
+  };
+  const identity = JSON.stringify({ operationType: "create_manual", payload });
+  const operationKey = input.operationKeys.acquire(identity);
+  const { data, error } = await supabase.rpc("rpc_create_private_recipe", {
+    p_operation_key: operationKey,
+    p_operation_type: "create_manual",
+    p_payload: payload,
+  });
+  if (error) throw mapRpcError(error);
+  const result = parseResult(data);
+  input.operationKeys.succeed(identity, operationKey);
+  return result;
+}
+
 export async function clonePrivateRecipe(input: {
   sourceRecipeId: string;
   operationKeys: RetryOperationKeyStore;
