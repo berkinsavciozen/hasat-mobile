@@ -39,13 +39,16 @@ import { useIsOffline } from "@/lib/net/useIsOffline";
 import { CropPickerModal } from "@/components/hasat/CropPickerModal";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 import {
+  createManualPrivateRecipe,
   createRetryOperationKeyStore,
   PrivateRecipeMutationError,
 } from "@/lib/hasat/privateRecipeMutations";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-type Stage = "pick" | "text" | "loading" | "review" | "saved";
+type Stage = "pick" | "text" | "image-intent" | "loading" | "review" | "saved";
+
+type PendingImage = { base64: string; mime: string; uri: string };
 
 export default function ImportScreen() {
   const insets = useSafeAreaInsets();
@@ -66,14 +69,17 @@ export default function ImportScreen() {
   const [text, setText] = useState("");
   const [recipeName, setRecipeName] = useState("");
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [hasVersionConflict, setHasVersionConflict] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState("Tarif okunuyor…");
   const [cropPickerForKey, setCropPickerForKey] = useState<string | null>(null);
   const createOperationKeys = useRef(createRetryOperationKeyStore());
   const updateOperationKeys = useRef(createRetryOperationKeyStore());
+  const manualCreateOperationKeys = useRef(createRetryOperationKeyStore());
   // T7a — yalnızca fotoğraftan-tahmin akışında dolu; review'da disclaimer'ı
   // BELİRGİN göstermek için (kabul kriteri #1/#2). Normal AI import'ta null.
   const [estimateMeta, setEstimateMeta] = useState<{
@@ -104,6 +110,7 @@ export default function ImportScreen() {
     async (input: { mode: "text" | "photo"; text?: string; base64?: string; mime?: string }) => {
       setError(null);
       setEstimateMeta(null);
+      setLoadingLabel("Tarif okunuyor…");
       setStage("loading");
       const operationIdentity = JSON.stringify({
         kind: "extract",
@@ -123,10 +130,14 @@ export default function ImportScreen() {
         const loaded = await loadDraft(result.recipeId);
         createOperationKeys.current.succeed(operationIdentity, operationKey);
         setDraft(loaded);
+        setPendingImage(null);
+        setPreviewUri(null);
         setStage("review");
       } catch (e) {
         setError(e instanceof ImportError ? e.message : "Tarif okunamadı. Tekrar dener misin?");
-        setStage(input.mode === "text" ? "text" : "pick");
+        // Seçilmiş fotoğrafı bellekte tut: kullanıcı aynı görseli yeniden
+        // seçmeden ve aynı operation key ile tekrar deneyebilsin.
+        setStage(input.mode === "text" ? "text" : "image-intent");
       }
     },
     [recipeName],
@@ -138,6 +149,7 @@ export default function ImportScreen() {
   const runEstimate = useCallback(
     async (input: { base64: string; mime: string }) => {
       setError(null);
+      setLoadingLabel("Tarif tahmin ediliyor…");
       setStage("loading");
       const operationIdentity = JSON.stringify({
         kind: "photo-estimate",
@@ -156,25 +168,26 @@ export default function ImportScreen() {
         createOperationKeys.current.succeed(operationIdentity, operationKey);
         setDraft(loaded);
         setEstimateMeta({ disclaimer: result.disclaimer, uncertainNotes: result.uncertainNotes });
+        setPendingImage(null);
+        setPreviewUri(null);
         setStage("review");
       } catch (e) {
         setError(
           e instanceof PhotoEstimateError ? e.message : "Tarif tahmin edilemedi. Tekrar dener misin?",
         );
-        setStage("pick");
+        // Belirsizlik seçimine geri dön; seçilmiş görsel ve retry anahtarı
+        // korunur, kamera/galeri akışı yeniden başlatılmaz.
+        setStage("image-intent");
       }
     },
     [recipeName],
   );
 
-  // `intent="text"` — yazılı tarif fotoğrafı (extract-recipe, OCR/okuma).
-  // `intent="estimate"` — T7a, PİŞMİŞ yemek fotoğrafı (estimate-recipe-from-photo,
-  // TAHMİN). Aynı izin/seçim/boyut-kontrolü — dispatch'in "mevcut fotoğraf
-  // yükleme akışlarında böyle bir şey varsa onu kullan" kabul kriteri #4:
-  // `quality: 0.5` zaten burada var olan tek sıkıştırma mekanizması, yeni bir
-  // resize kütüphanesi eklenmedi.
+  // Backend seçilen görselin yemek fotoğrafı mı yazılı tarif mi olduğunu
+  // sınıflandırmıyor. Görsel önce bir kez seçilir; sonra kısa belirsizlik
+  // sorusu gösterilir. Kamera/galeri seçimini ikinci kez yaptırmayız.
   const pickImage = useCallback(
-    async (source: "camera" | "library", intent: "text" | "estimate" = "text") => {
+    async (source: "camera" | "library") => {
       setError(null);
       const permission =
         source === "camera"
@@ -209,18 +222,61 @@ export default function ImportScreen() {
         return;
       }
       setPreviewUri(asset.uri);
-      if (intent === "estimate") {
-        await runEstimate({ base64: asset.base64, mime: asset.mimeType ?? "image/jpeg" });
-      } else {
-        await run({
-          mode: "photo",
-          base64: asset.base64,
-          mime: asset.mimeType ?? "image/jpeg",
-        });
-      }
+      setPendingImage({
+        base64: asset.base64,
+        mime: asset.mimeType ?? "image/jpeg",
+        uri: asset.uri,
+      });
+      setStage("image-intent");
     },
-    [run, runEstimate],
+    [],
   );
+
+  const createManualDraft = useCallback(async () => {
+    setError(null);
+    setEstimateMeta(null);
+    setLoadingLabel("Özel taslağın hazırlanıyor…");
+    setStage("loading");
+    try {
+      const manualTitle = recipeName.trim() || "Yeni tarif";
+      const result = await createManualPrivateRecipe({
+        operationKeys: manualCreateOperationKeys.current,
+        title: manualTitle,
+      });
+      // RPC'nin kanonik sonucu zaten id/version döndürüyor; hemen ardından
+      // ayrı bir read yapıp başarılı create'i ağ hatası yüzünden tekrar
+      // çalıştırma riskine girmeden aynı editor state'ini yerelde kur.
+      setDraft({
+        recipeId: result.recipeId,
+        privateEditVersion: result.version,
+        title: manualTitle,
+        description: null,
+        servings: "",
+        prepMinutes: "",
+        cookMinutes: "",
+        restMinutes: "",
+        difficulty: null,
+        extractionConfidence: null,
+        ingredients: [],
+        steps: [
+          {
+            key: newKey("step"),
+            instruction: "Hazırlama adımını buraya yaz.",
+            timerMinutes: "",
+            photoUrl: null,
+          },
+        ],
+      });
+      setStage("review");
+    } catch (e) {
+      setError(
+        e instanceof PrivateRecipeMutationError
+          ? e.message
+          : "Taslak oluşturulamadı. Bağlantını kontrol edip tekrar dene.",
+      );
+      setStage("pick");
+    }
+  }, [recipeName]);
 
   const close = useCallback(async () => {
     // Taslak kaydedilmeden çıkılıyorsa silinir — yarım/bozuk bir kayıt
@@ -305,11 +361,11 @@ export default function ImportScreen() {
         )}
         {/* Belirsiz spinner — sabit ilerleme çubuğu bilinçli olarak YOK
             (şartname 3b: yanlış süre beklentisi vermemek için). */}
-        <ActivityIndicator color="#C8833B" size="large" />
-        <Text className="mt-4 text-sm text-hwhite">
-          {isEditMode ? "Tarif yükleniyor…" : "Tarif okunuyor…"}
+        <ActivityIndicator color="#C8833B" size="large" accessibilityLabel={loadingLabel} />
+        <Text className="mt-4 text-sm text-hwhite" accessibilityLiveRegion="polite">
+          {isEditMode ? "Tarif yükleniyor…" : loadingLabel}
         </Text>
-        {!isEditMode && (
+        {!isEditMode && loadingLabel !== "Özel taslağın hazırlanıyor…" && (
           <Text className="mt-1 text-center text-xs text-hmuted">
             Fotoğraflarda biraz daha uzun sürebilir.
           </Text>
@@ -654,7 +710,11 @@ export default function ImportScreen() {
             </View>
           ))}
 
-          {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
+          {error && (
+            <Text className="mt-4 text-xs text-hred" accessibilityRole="alert">
+              {error}
+            </Text>
+          )}
           {hasVersionConflict && (
             <Pressable
               className="mt-3 self-start rounded-full border border-saffron px-3 py-2"
@@ -687,7 +747,18 @@ export default function ImportScreen() {
         className="flex-row items-center gap-3 px-5 pb-3"
         style={{ paddingTop: insets.top + 8 }}
       >
-        <Pressable onPress={() => (stage === "text" ? setStage("pick") : router.back())} hitSlop={12}>
+        <Pressable
+          onPress={() => {
+            if (stage === "text" || stage === "image-intent") {
+              setStage("pick");
+              return;
+            }
+            router.back();
+          }}
+          className="h-12 w-12 items-center justify-center"
+          accessibilityRole="button"
+          accessibilityLabel={stage === "pick" ? "Tarif eklemeyi kapat" : "Geri dön"}
+        >
           <Text className="text-xl text-hwhite">✕</Text>
         </Pressable>
         <Text className="text-lg font-medium text-hwhite">Tarif Ekle</Text>
@@ -704,14 +775,11 @@ export default function ImportScreen() {
 
         {stage === "pick" ? (
           <>
-            <Text className="mb-1 text-sm text-hwhite">
-              Elindeki tarifi Hasat defterine aktar.
+            <Text className="mb-1 text-base font-medium text-hwhite">
+              Ne eklemek istersin?
             </Text>
-            <Text className="mb-5 text-xs text-hmuted">
-              Yazılı bir tarifin fotoğrafını (kitap sayfası, el yazısı not) çekebilir ya da
-              metnini yapıştırabilirsin. Fotoğraf yalnızca tarifi okumak için gönderilir;
-              kamera izni bunun için isteniyor. Eklediğin tarif{" "}
-              <Text className="text-hwhite">yalnızca sana görünür</Text>.
+            <Text className="mb-5 text-sm text-hmuted">
+              Eklediğin her tarif özel taslak olarak Defterim'e kaydolur ve yalnızca sana görünür.
             </Text>
 
             <Field label="Tarifin adı (opsiyonel)">
@@ -721,6 +789,7 @@ export default function ImportScreen() {
                 placeholder="Ör. Karnıyarık"
                 placeholderTextColor="rgba(253,250,245,0.3)"
                 className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
+                accessibilityLabel="Tarifin adı, opsiyonel"
               />
             </Field>
             <Text className="mb-5 text-[11px] text-hmuted">
@@ -728,53 +797,73 @@ export default function ImportScreen() {
               veya malzemeyi bu isimden tamamlamayız.
             </Text>
 
+            <View className="mb-3 rounded-2xl border border-white/15 bg-white/5 p-4">
+              <Text className="text-base font-medium text-hwhite">Fotoğraf ekle</Text>
+              <Text className="mb-3 mt-1 text-xs text-hmuted">
+                Yemek fotoğrafı, kitap sayfası, not veya ekran görüntüsü olabilir.
+              </Text>
+              <View className="flex-row gap-3">
+                <SmallAction
+                  disabled={isOffline}
+                  label="Kamera"
+                  accessibilityLabel="Kamerayla tarif görseli çek"
+                  onPress={() => void pickImage("camera")}
+                />
+                <SmallAction
+                  disabled={isOffline}
+                  label="Galeri"
+                  accessibilityLabel="Galeriden tarif görseli seç"
+                  onPress={() => void pickImage("library")}
+                />
+              </View>
+            </View>
             <BigButton
               disabled={isOffline}
-              label="📷 Fotoğraf Çek"
-              onPress={() => void pickImage("camera")}
-            />
-            <BigButton
-              disabled={isOffline}
-              label="🖼 Galeriden Seç"
-              onPress={() => void pickImage("library")}
-            />
-            <BigButton
-              disabled={isOffline}
-              label="✍️ Metin Yapıştır"
+              label="Tarif metni yapıştır"
+              hint="Yazılı tarifin malzemelerini ve hazırlanışını yapıştır."
               onPress={() => setStage("text")}
             />
-
-            {/* T7a — yazılı tarif fotoğrafından AYRI bir giriş: burada fotoğraf
-                PİŞMİŞ/HAZIRLANMIŞ yemeğin kendisi, tarifin metni değil. AI
-                bunu OKUMAZ, TAHMİN eder — bu yüzden ayrı bir bölüm başlığı ve
-                net bir "deneysel/tahmini" çerçeveme var (disclaimer zaten
-                review'da tekrar, belirgin şekilde gösteriliyor). */}
-            <Text className="mb-2 mt-6 text-xs font-medium uppercase tracking-wider text-hmuted">
-              Ya da: pişmiş bir yemeğin fotoğrafından tahmin et
-            </Text>
-            <Text className="mb-3 text-[11px] text-hmuted">
-              Yazılı tarifin yok ama yemeğin fotoğrafı var mı? AI, göründüğüne bakarak olası bir
-              tarif TAHMİN eder — gerçek tarifle farklılık gösterebilir, kaydetmeden önce mutlaka
-              kontrol etmen gerekir.
-            </Text>
             <BigButton
               disabled={isOffline}
-              label="🍲 Yemek Fotoğrafı Çek (Tahmin Et)"
-              onPress={() => void pickImage("camera", "estimate")}
+              label="Sıfırdan tarif oluştur"
+              hint="Defterim'de yalnızca sana görünen boş bir taslak açar."
+              onPress={() => void createManualDraft()}
+            />
+          </>
+        ) : stage === "image-intent" && pendingImage ? (
+          <>
+            <Image
+              source={{ uri: pendingImage.uri }}
+              className="mb-5 h-48 w-full rounded-2xl"
+              resizeMode="cover"
+              accessibilityLabel="Seçilen tarif görseli önizlemesi"
+            />
+            <Text className="text-base font-medium text-hwhite">Bu görselde ne var?</Text>
+            <Text className="mb-5 mt-1 text-sm text-hmuted">
+              Görsel türünü güvenilir biçimde otomatik ayıramadık. Bir kez seçmen yeterli.
+            </Text>
+            <BigButton
+              label="Yemek fotoğrafı"
+              hint="Görüntüden olası bir tarif tahmin eder; kaydetmeden önce kontrol edersin."
+              onPress={() =>
+                void runEstimate({ base64: pendingImage.base64, mime: pendingImage.mime })
+              }
             />
             <BigButton
-              disabled={isOffline}
-              label="🖼 Galeriden Seç (Tahmin Et)"
-              onPress={() => void pickImage("library", "estimate")}
+              label="Yazılı tarif görseli"
+              hint="Kitap sayfası, el yazısı not veya ekran görüntüsündeki tarifi okur."
+              onPress={() =>
+                void run({
+                  mode: "photo",
+                  base64: pendingImage.base64,
+                  mime: pendingImage.mime,
+                })
+              }
             />
-
-            <Text className="mt-6 text-[11px] text-hmuted">
-              Bağlantı/YouTube ile içe aktarma henüz yok.
-            </Text>
           </>
         ) : (
           <>
-            <Text className="mb-2 text-xs text-hmuted">Tarif metnini yapıştır</Text>
+            <Text className="mb-2 text-sm text-hmuted">Tarif metnini yapıştır</Text>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -783,19 +872,35 @@ export default function ImportScreen() {
               placeholder={"Örn:\nMercimek çorbası\n\nMalzemeler\n- 1 su bardağı kırmızı mercimek\n…\n\nYapılışı\n1. …"}
               placeholderTextColor="rgba(253,250,245,0.3)"
               className="min-h-[220px] rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-hwhite"
+              accessibilityLabel="Tarif metni"
             />
             <Pressable
               disabled={text.trim().length < 20 || isOffline}
-              onPress={() => void run({ mode: "text", text: text.trim() })}
+              onPress={() => {
+                const value = text.trim();
+                if (/^https?:\/\//i.test(value)) {
+                  setError(
+                    "Bu bağlantı türü henüz desteklenmiyor. Metni buraya yapıştırabilirsin; yazdıkların silinmedi.",
+                  );
+                  return;
+                }
+                void run({ mode: "text", text: value });
+              }}
               className="mt-4 items-center rounded-xl bg-saffron py-3.5"
               style={{ opacity: text.trim().length < 20 || isOffline ? 0.4 : 1 }}
+              accessibilityRole="button"
+              accessibilityLabel="Tarifi çıkar"
             >
               <Text className="font-medium text-hwhite">Tarifi Çıkar</Text>
             </Pressable>
           </>
         )}
 
-        {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
+        {error && (
+          <Text className="mt-4 text-xs text-hred" accessibilityRole="alert">
+            {error}
+          </Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingScreen>
   );
@@ -865,8 +970,37 @@ function BigButton({
   label,
   onPress,
   disabled,
+  hint,
 }: {
   label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  hint?: string;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      className="mb-3 min-h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-4 py-4"
+      style={{ opacity: disabled ? 0.4 : 1 }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ disabled: Boolean(disabled) }}
+    >
+      <Text className="text-base text-hwhite">{label}</Text>
+    </Pressable>
+  );
+}
+
+function SmallAction({
+  label,
+  accessibilityLabel,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  accessibilityLabel: string;
   onPress: () => void;
   disabled?: boolean;
 }) {
@@ -874,10 +1008,13 @@ function BigButton({
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      className="mb-3 items-center rounded-2xl border border-white/15 bg-white/5 py-5"
+      className="min-h-12 flex-1 items-center justify-center rounded-xl bg-saffron px-3"
       style={{ opacity: disabled ? 0.4 : 1 }}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: Boolean(disabled) }}
     >
-      <Text className="text-base text-hwhite">{label}</Text>
+      <Text className="font-medium text-hwhite">{label}</Text>
     </Pressable>
   );
 }

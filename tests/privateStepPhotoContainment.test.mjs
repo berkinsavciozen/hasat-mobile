@@ -8,7 +8,9 @@ const [screenSource, importSource] = await Promise.all([
 ]);
 
 test("private recipe review UI exposes no new step-photo upload path", () => {
-  assert.doesNotMatch(screenSource, /Fotoğraf ekle/);
+  // UX-1D'nin tarif kaynağı olarak fotoğraf ekleme girişi serbesttir; yasak
+  // olan yalnız review içindeki adım fotoğrafı upload CTA'sıdır.
+  assert.doesNotMatch(screenSource, /Fotoğraf ekle \(opsiyonel\)/);
   assert.doesNotMatch(screenSource, /pickStepPhoto|uploadStepPhoto|uploadingStepKey/);
   assert.doesNotMatch(importSource, /\.from\(["']recipe-step-photos["']\)\s*\.upload/);
   assert.doesNotMatch(importSource, /export\s+async\s+function\s+uploadStepPhoto/);
