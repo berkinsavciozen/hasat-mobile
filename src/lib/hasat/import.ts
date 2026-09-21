@@ -205,13 +205,9 @@ export interface DraftStep {
   instruction: string;
   /** Kullanıcıya dakika olarak gösteriliyor; DB'ye saniye yazılıyor. */
   timerMinutes: string;
-  /** P23-M8-d (T4) — opsiyonel, nice-to-have: kullanıcının adıma eklediği
-   * fotoğraf. `recipe_steps.photo_url` P23-M2'den beri şemada var (editoryal
-   * tariflerde zaten kullanılıyor, bkz. cook mode) — burada yalnızca
-   * kullanıcının kendi taslağında da doldurabilmesi için UI eklendi. Seçilen
-   * fotoğraf `uploadStepPhoto` ile hemen yüklenip buraya kalıcı URL olarak
-   * yazılır (yerel `file://` URI hiç saklanmaz — cihaz önbelleği temizlenince
-   * kırılırdı). */
+  /** Mevcut adım fotoğrafı. UX-1C-0 boyunca yeni upload kapalıdır; değer
+   * yükleme/görüntüleme ve başlık-only save sırasında korunur. Kullanıcının
+   * açık kaldırma işlemi null olarak kaydedilmeye devam eder. */
   photoUrl: string | null;
 }
 
@@ -310,41 +306,6 @@ export async function loadDraft(recipeId: string): Promise<RecipeDraft> {
       photoUrl: s.photo_url ?? null,
     })),
   };
-}
-
-// ── Adım fotoğrafı (P23-M8-d, T4 — nice-to-have) ────────────────────────────
-// Bucket `recipe-step-photos` (public=true, INSERT/UPDATE/DELETE yalnızca
-// `auth.uid()::text = yolun ilk klasörü` — `parcel-photos`/`harvest-photos`/
-// `listing-photos` ile BİREBİR aynı desen, bkz. hasat-d2c-marketplace'in
-// `uploadParcelPhotos`/`uploadHarvestPhotos`). Yeni bir native modül
-// EKLENMEDİ — `expo-image-picker`'ın zaten döndürdüğü `uri` doğrudan
-// `FormData`'ya `{uri, name, type}` olarak veriliyor (React Native'in
-// `fetch`/`FormData` implementasyonu bunu native tarafta multipart'a çeviriyor);
-// bu proje için `expo-file-system`/`base64-arraybuffer` gibi ek bir bağımlılık
-// ya da yeni bir EAS build gerekmedi (görev talimatı: "Build gerektirmiyor").
-export async function uploadStepPhoto(
-  userId: string,
-  recipeId: string,
-  localUri: string,
-): Promise<string> {
-  const ext = (localUri.split(".").pop() || "jpg").split("?")[0].toLowerCase();
-  const mime = ext === "png" ? "image/png" : "image/jpeg";
-  const path = `${userId}/${recipeId}/${Date.now()}-${newKey("step-photo")}.${ext}`;
-
-  const formData = new FormData();
-  // React Native'e özgü FormData sözleşmesi: gerçek bir `File`/`Blob`
-  // olmadan `{uri, name, type}` şekli, `fetch` gönderirken native tarafta
-  // dosya içeriğine çevriliyor (Supabase'in resmi Expo örnekleri de bu
-  // deseni kullanıyor).
-  formData.append("file", { uri: localUri, name: `step.${ext}`, type: mime } as unknown as Blob);
-
-  const { error: upErr } = await supabase.storage
-    .from("recipe-step-photos")
-    .upload(path, formData, { upsert: false });
-  if (upErr) throw upErr;
-
-  const { data } = supabase.storage.from("recipe-step-photos").getPublicUrl(path);
-  return data.publicUrl;
 }
 
 function parseIntOrNull(v: string): number | null {
