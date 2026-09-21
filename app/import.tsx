@@ -819,8 +819,8 @@ export default function ImportScreen() {
             </View>
             <BigButton
               disabled={isOffline}
-              label="Metin veya bağlantı yapıştır"
-              hint="Tarif metnini yapıştır; desteklenmeyen bağlantılarda içeriğin korunur."
+              label="Tarif metni yapıştır"
+              hint="Yazılı tarifin malzemelerini ve hazırlanışını yapıştır."
               onPress={() => setStage("text")}
             />
             <BigButton
@@ -863,7 +863,7 @@ export default function ImportScreen() {
           </>
         ) : (
           <>
-            <Text className="mb-2 text-sm text-hmuted">Tarif metnini veya bağlantısını yapıştır</Text>
+            <Text className="mb-2 text-sm text-hmuted">Tarif metnini yapıştır</Text>
             <TextInput
               value={text}
               onChangeText={setText}
@@ -872,7 +872,7 @@ export default function ImportScreen() {
               placeholder={"Örn:\nMercimek çorbası\n\nMalzemeler\n- 1 su bardağı kırmızı mercimek\n…\n\nYapılışı\n1. …"}
               placeholderTextColor="rgba(253,250,245,0.3)"
               className="min-h-[220px] rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-hwhite"
-              accessibilityLabel="Tarif metni veya bağlantısı"
+              accessibilityLabel="Tarif metni"
             />
             <Pressable
               disabled={text.trim().length < 20 || isOffline}

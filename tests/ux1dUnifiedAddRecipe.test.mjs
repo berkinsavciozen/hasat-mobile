@@ -10,7 +10,8 @@ const [screen, mutations, containment] = await Promise.all([
 
 test("ilk yüzey teknik AI seçenekleri yerine üç kullanıcı niyeti gösterir", () => {
   assert.match(screen, /Fotoğraf ekle/);
-  assert.match(screen, /Metin veya bağlantı yapıştır/);
+  assert.match(screen, /Tarif metni yapıştır/);
+  assert.doesNotMatch(screen, /Metin veya bağlantı yapıştır/);
   assert.match(screen, /Sıfırdan tarif oluştur/);
   assert.doesNotMatch(screen, /Yemek Fotoğrafı Çek \(Tahmin Et\)/);
   assert.doesNotMatch(screen, /Galeriden Seç \(Tahmin Et\)/);
