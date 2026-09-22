@@ -47,6 +47,7 @@ const {
   proposeCustomization,
   saveCustomization,
   newIdempotencyKey,
+  createCustomizationKeyStore,
   CustomizeRecipeError,
 } = await import("../src/lib/hasat/customizeRecipe.ts");
 
@@ -55,6 +56,19 @@ test("newIdempotencyKey art arda çağrılarda farklı değer üretir", () => {
   const b = newIdempotencyKey();
   assert.notEqual(a, b);
   assert.match(a, /^[0-9a-f-]{36}$/);
+});
+
+test("özelleştirme retry aynı key'i, farklı source veya talimat yeni key'i kullanır", () => {
+  let seq = 0;
+  const keys = createCustomizationKeyStore(() => `key-${++seq}`);
+  const first = keys.acquire("source-a", "Eti çıkar");
+  assert.equal(keys.acquire("source-a", "Eti çıkar"), first);
+  assert.notEqual(keys.acquire("source-a", "Baharatı azalt"), first);
+  const changedInstruction = keys.acquire("source-a", "Baharatı azalt");
+  assert.notEqual(keys.acquire("source-b", "Baharatı azalt"), changedInstruction);
+  const completed = keys.acquire("source-b", "Baharatı azalt");
+  keys.succeed(completed);
+  assert.notEqual(keys.acquire("source-b", "Baharatı azalt"), completed);
 });
 
 test("propose isteği idempotency_key'i gövdede taşır ve geçerli öneriyi döndürür", async () => {
