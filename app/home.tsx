@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { OfflineBanner } from "@/components/hasat/OfflineBanner";
 import { RepresentativePhoto } from "@/components/hasat/RepresentativePhoto";
@@ -82,11 +82,15 @@ import { useHasatMobileSession } from "@/lib/store/session";
 type Tab = "public" | "mine";
 
 export default function RecipeListScreen() {
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const responsive = getHomeResponsiveLayout(width, fontScale);
   const isOffline = useIsOffline();
-  const [tab, setTab] = useState<Tab>("public");
+  const [tab, setTab] = useState<Tab>(requestedTab === "mine" ? "mine" : "public");
+  useEffect(() => {
+    if (requestedTab === "mine") setTab("mine");
+  }, [requestedTab]);
   const { data, isLoading, isError, refetch, isRefetching } = useRecipeList();
   const mine = useMyRecipes();
   // F5 — "Favorilerim", "Tariflerim"den (kendi importlarım) AYRI bir alt

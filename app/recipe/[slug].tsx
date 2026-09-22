@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   RepresentativePhoto,
   RepresentativeBadge,
@@ -55,6 +56,7 @@ import {
   createRetryOperationKeyStore,
   PrivateRecipeMutationError,
 } from "@/lib/hasat/privateRecipeMutations";
+import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
 
 /**
  * P23-M5-b tarif detayı, P23-M6-ek'te dört-durumlu malzeme kartı aksiyonlarıyla
@@ -333,23 +335,10 @@ export default function RecipeDetailScreen() {
             RPC'lerin kendi sunucu-taraflı kontrolü hem dispatch kabul
             kriteri). `isOwn` zaten `own=1` rotasında bu bloğu render etmiyor,
             ama kaynak `RecipeDetail.author_type` sinyali yine de kontrol
-            ediliyor — ikisi bağımsız sinyaller. İkisi de ağ round-trip'i
-            gerektirdiği için çevrimdışıyken hiç gösterilmiyor. */}
-        {!isOwn && !isOffline && !!r.author_type && r.author_type !== "kullanici" && (
-          <View className="mt-3 flex-row flex-wrap gap-2">
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/recipe-customize",
-                  params: { recipeId: r.id, title: r.title },
-                })
-              }
-              className="rounded-full border border-white/15 px-3 py-1.5"
-            >
-              <Text className="text-xs font-medium text-hwhite">🎨 AI ile Özelleştir</Text>
-            </Pressable>
-            <CloneRecipeButton recipeId={r.id} />
-          </View>
+            ediliyor — ikisi bağımsız sinyaller. Çevrimdışıyken karar yüzeyi
+            görünür kalır, eylemler açık durum mesajıyla devre dışıdır. */}
+        {!isOwn && !!r.author_type && r.author_type !== "kullanici" && (
+          <PublicRecipeActions recipeId={r.id} title={r.title} isOffline={isOffline} />
         )}
       </View>
 
@@ -583,18 +572,27 @@ function FavoriteButton({ recipeId }: { recipeId: string }) {
   );
 }
 
-/** F11 — "Bağımsız klonla". Aynı source retry'ı aynı operation key'i taşır;
- * sunucu idempotency'si `busy` state'ine ek olarak hızlı çift dokunmayı güvenli
- * kılar. Başarılı klonlamadan sonra F7'nin
- * düzenleme girişiyle AYNI yola (`/import?recipeId=`) yönlendiriyor — yeni
- * bir "klon düzenleme ekranı" YOK (kural #106). */
-function CloneRecipeButton({ recipeId }: { recipeId: string }) {
+/**
+ * Public/editoryal tarif için tek karar yüzeyi. AI özelleştirme ana eylemdir;
+ * birebir private kopya daha düşük ağırlıklı ikincil eylemdir. Her iki yol da
+ * yalnız Defterim'e gider; public yayın eylemi sunulmaz.
+ */
+function PublicRecipeActions({
+  recipeId,
+  title,
+  isOffline,
+}: {
+  recipeId: string;
+  title: string;
+  isOffline: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const operationKeys = useRef(createRetryOperationKeyStore());
+  const queryClient = useQueryClient();
 
   const handlePress = async () => {
-    if (busy) return;
+    if (busy || isOffline) return;
     setBusy(true);
     setError(null);
     try {
@@ -602,7 +600,11 @@ function CloneRecipeButton({ recipeId }: { recipeId: string }) {
         sourceRecipeId: recipeId,
         operationKeys: operationKeys.current,
       });
-      router.push({ pathname: "/import", params: { recipeId: result.recipeId } });
+      // Başarıdan sonra ikinci review yok: RPC'nin private/draft sonucunu
+      // Defterim listesinde göster. Cache yalnız kanonik başarıdan sonra değişir.
+      void result.recipeId;
+      void queryClient.invalidateQueries({ queryKey: MY_RECIPES_QUERY_KEY });
+      router.replace({ pathname: "/home", params: { tab: "mine" } });
     } catch (e) {
       console.error("[recipe] klonlama başarısız", e);
       setError(
@@ -615,18 +617,51 @@ function CloneRecipeButton({ recipeId }: { recipeId: string }) {
   };
 
   return (
-    <View>
+    <View className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
+      <Text className="mb-3 text-xs text-hmuted">
+        Bu tarifin herkese açık hâli değişmez. Oluşturulan tarif yalnızca senin Defterim'de görünür.
+      </Text>
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/recipe-customize",
+            params: { recipeId, title },
+          })
+        }
+        disabled={isOffline || busy}
+        className="min-h-12 items-center justify-center rounded-xl bg-saffron px-4 py-3"
+        style={{ opacity: isOffline || busy ? 0.45 : 1 }}
+        accessibilityRole="button"
+        accessibilityLabel="Kendime göre uyarla"
+        accessibilityHint="AI önerisini kontrol edip özel bir Defterim tarifi oluşturur"
+        accessibilityState={{ disabled: isOffline || busy }}
+      >
+        <Text className="text-base font-semibold text-hwhite">Kendime göre uyarla</Text>
+      </Pressable>
       <Pressable
         onPress={() => void handlePress()}
-        disabled={busy}
-        className="rounded-full border border-white/15 px-3 py-1.5"
-        style={{ opacity: busy ? 0.6 : 1 }}
+        disabled={busy || isOffline}
+        className="mt-2 min-h-12 items-center justify-center rounded-xl px-4 py-3"
+        style={{ opacity: busy || isOffline ? 0.45 : 1 }}
+        accessibilityRole="button"
+        accessibilityLabel={busy ? "Defterime ekleniyor" : "Olduğu gibi Defterime ekle"}
+        accessibilityHint="AI kullanmadan birebir özel kopya oluşturur"
+        accessibilityState={{ disabled: busy || isOffline, busy }}
       >
-        <Text className="text-xs font-medium text-hwhite">
-          {busy ? "Klonlanıyor…" : "📋 Bağımsız Klonla"}
+        <Text className="text-sm font-medium text-hmuted">
+          {busy ? "Defterime ekleniyor…" : "Olduğu gibi Defterime ekle"}
         </Text>
       </Pressable>
-      {error && <Text className="mt-1 text-[11px] text-hred">{error}</Text>}
+      {isOffline ? (
+        <Text className="mt-2 text-xs text-hmuted" accessibilityLiveRegion="polite">
+          Bu işlemler için internet bağlantısı gerekiyor.
+        </Text>
+      ) : null}
+      {error ? (
+        <Text className="mt-2 text-xs text-hred" accessibilityRole="alert" accessibilityLiveRegion="assertive">
+          {error} Seçimin ve tekrar deneme anahtarın korundu.
+        </Text>
+      ) : null}
     </View>
   );
 }

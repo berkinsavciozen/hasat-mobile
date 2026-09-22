@@ -38,6 +38,7 @@ import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import { CropPickerModal } from "@/components/hasat/CropPickerModal";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { RecipeReviewShell } from "@/components/hasat/RecipeReviewShell";
 import {
   createManualPrivateRecipe,
   createRetryOperationKeyStore,
@@ -379,20 +380,12 @@ export default function ImportScreen() {
     const lowConfidence =
       draft.extractionConfidence != null && draft.extractionConfidence < LOW_CONFIDENCE_THRESHOLD;
     return (
-      <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
-        <View
-          className="flex-row items-center justify-between border-b border-white/10 px-5 pb-3"
-          style={{ paddingTop: insets.top + 8 }}
-        >
-          <Pressable onPress={close} hitSlop={12}>
-            <Text className="text-xl text-hwhite">✕</Text>
-          </Pressable>
-          <Text className="text-base font-medium text-hwhite">
-            {isEditMode ? "Tarifi Düzenle" : "Kontrol Et"}
-          </Text>
-          <Pressable
-            disabled={saving}
-            onPress={async () => {
+      <RecipeReviewShell
+        title={isEditMode ? "Tarifi Düzenle" : "Kontrol Et"}
+        saving={saving}
+        onClose={() => void close()}
+        onSave={() => {
+          void (async () => {
               setError(null);
               setHasVersionConflict(false);
               if (isOffline) {
@@ -415,18 +408,10 @@ export default function ImportScreen() {
               } finally {
                 setSaving(false);
               }
-            }}
-          >
-            <Text className="text-base font-medium text-saffron">
-              {saving ? "Kaydediliyor…" : "Kaydet"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
+            })();
+        }}
+        error={error}
+      >
           {/* T7a kabul kriteri #1 — ZORUNLU: disclaimer küçük bir dipnot değil,
               belirgin bir banner olarak gösterilmeli. Kalın çerçeve + dolu
               arkaplan + emoji bilinçli — genel `lowConfidence` uyarısından
@@ -710,11 +695,6 @@ export default function ImportScreen() {
             </View>
           ))}
 
-          {error && (
-            <Text className="mt-4 text-xs text-hred" accessibilityRole="alert">
-              {error}
-            </Text>
-          )}
           {hasVersionConflict && (
             <Pressable
               className="mt-3 self-start rounded-full border border-saffron px-3 py-2"
@@ -735,8 +715,7 @@ export default function ImportScreen() {
               <Text className="text-xs font-medium text-saffron">Güncel halini yeniden yükle</Text>
             </Pressable>
           )}
-        </ScrollView>
-      </KeyboardAvoidingScreen>
+      </RecipeReviewShell>
     );
   }
 

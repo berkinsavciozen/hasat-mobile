@@ -33,7 +33,10 @@ test("T6 anahtarı korunur ve typed RPC kullanır", async () => {
     read("../app/recipe-customize.tsx"),
   ]);
   assert.match(adapter, /p_idempotency_key: input\.idempotencyKey/);
-  assert.match(screen, /const \[idempotencyKey\] = useState\(\(\) => newIdempotencyKey\(\)\)/);
+  assert.match(screen, /createCustomizationKeyStore\(\)/);
+  assert.match(screen, /acquire\(recipeId, instruction\)/);
+  assert.match(screen, /idempotencyKey: attemptKey/);
+  assert.match(screen, /saveCustomization\(\{[\s\S]*idempotencyKey/);
   assert.doesNotMatch(adapter, /supabase\.rpc as any/);
 });
 

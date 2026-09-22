@@ -66,6 +66,21 @@ export function newIdempotencyKey(): string {
   return uuidv4();
 }
 
+/** Aynı source+talimat retry'ında key'i korur; farklı özelleştirme yeni key alır. */
+export function createCustomizationKeyStore(generate: () => string = newIdempotencyKey) {
+  let current: { identity: string; key: string } | null = null;
+  return {
+    acquire(sourceRecipeId: string, instruction: string): string {
+      const identity = JSON.stringify({ sourceRecipeId, instruction: instruction.trim() });
+      if (!current || current.identity !== identity) current = { identity, key: generate() };
+      return current.key;
+    },
+    succeed(key: string): void {
+      if (current?.key === key) current = null;
+    },
+  };
+}
+
 export interface CustomizeDraftIngredient {
   crop: string | null;
   freeTextName: string | null;

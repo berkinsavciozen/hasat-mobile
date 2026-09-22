@@ -8,21 +8,25 @@
 //   "loading"     — Faz A (`customize-recipe`, phase=propose) bekleniyor.
 //   "review"      — dönen öneri DÜZENLENEBİLİR (kabul kriteri #1) — kaydetmeden
 //                   önce başlık/malzeme/adım değiştirilebilir. Kaydet ("Faz B",
-//                   `rpc_create_ai_customized_recipe`) başarılı olunca F7'nin
-//                   düzenleme ekranına (`/import?recipeId=`) yönlendirilir —
-//                   bu ekranın kendi ayrı bir "kaydedildi" hâli yok.
+//                   `rpc_create_ai_customized_recipe`) başarılı olunca aynı
+//                   veriyi ikinci kez onaylatmadan Defterim'e yönlendirilir.
 //
-// idempotency_key ekran açılırken BİR KERE üretilir, Faz A ve Faz B'de AYNI
-// değer kullanılır (kabul kriteri #2) — bkz. lib/hasat/customizeRecipe.ts.
-import { useCallback, useState } from "react";
+// idempotency_key aynı source+talimat denemesi için BİR KERE üretilir, Faz A
+// ve Faz B'de AYNI değer kullanılır. Retry bu anahtarı korur; farklı kaynak
+// veya farklı talimat yeni mantıksal işlem ve yeni anahtar alır.
+import { useCallback, useRef, useState } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
+import { RecipeReviewShell } from "@/components/hasat/RecipeReviewShell";
+import { useQueryClient } from "@tanstack/react-query";
+import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
+import { useIsOffline } from "@/lib/net/useIsOffline";
 import {
   proposeCustomization,
   saveCustomization,
-  newIdempotencyKey,
+  createCustomizationKeyStore,
   CustomizeRecipeError,
   type CustomizeDraft,
   type CustomizeDraftIngredient,
@@ -138,30 +142,42 @@ function toApiDraft(d: EditableDraft): CustomizeDraft {
 
 export default function RecipeCustomizeScreen() {
   const insets = useSafeAreaInsets();
+  const isOffline = useIsOffline();
+  const queryClient = useQueryClient();
   const { recipeId, title: sourceTitle } = useLocalSearchParams<{
     recipeId: string;
     title?: string;
   }>();
-  const [idempotencyKey] = useState(() => newIdempotencyKey());
+  const customizationKeys = useRef(createCustomizationKeyStore());
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("instruction");
   const [instruction, setInstruction] = useState("");
   const [draft, setDraft] = useState<EditableDraft | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const requestSequence = useRef(0);
 
   const canSubmit = instruction.trim().length >= 5 && !!recipeId;
 
   const submit = useCallback(async () => {
     if (!canSubmit) return;
+    if (isOffline) {
+      setError("Öneri almak için internet bağlantısı gerekiyor. Yazdıkların burada kalacak.");
+      return;
+    }
+    const requestId = ++requestSequence.current;
+    const attemptKey = customizationKeys.current.acquire(recipeId, instruction);
+    setIdempotencyKey(attemptKey);
     setError(null);
     setStage("loading");
     try {
       const result = await proposeCustomization({
         sourceRecipeId: recipeId,
         instruction: instruction.trim(),
-        idempotencyKey,
+        idempotencyKey: attemptKey,
       });
+      if (requestId !== requestSequence.current) return;
       setDraft(toEditable(result.draft));
       setIssues(
         result.valid
@@ -172,15 +188,26 @@ export default function RecipeCustomizeScreen() {
       );
       setStage("review");
     } catch (e) {
+      if (requestId !== requestSequence.current) return;
       setError(
         e instanceof CustomizeRecipeError ? e.message : "Öneri alınamadı. Tekrar dener misin?",
       );
       setStage("instruction");
     }
-  }, [canSubmit, recipeId, instruction, idempotencyKey]);
+  }, [canSubmit, isOffline, recipeId, instruction]);
+
+  const cancelProposal = useCallback(() => {
+    requestSequence.current += 1;
+    setStage("instruction");
+    setError("İstek iptal edildi. Yazdıkların korundu; hazır olduğunda tekrar deneyebilirsin.");
+  }, []);
 
   const confirmSave = useCallback(async () => {
-    if (!draft || saving) return;
+    if (!draft || !idempotencyKey || saving) return;
+    if (isOffline) {
+      setError("Kaydetmek için internet bağlantısı gerekiyor. Düzenlemelerin korunuyor.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -189,14 +216,17 @@ export default function RecipeCustomizeScreen() {
         sourceRecipeId: recipeId,
         draft: toApiDraft(draft),
       });
-      // F7'nin düzenleme girişiyle aynı yol (kural #106 — yeni ekran yok):
-      // yeni özelleştirilmiş taslak da `app/import.tsx`'in review formunda açılır.
-      router.replace({ pathname: "/import", params: { recipeId: newRecipeId } });
+      customizationKeys.current.succeed(idempotencyKey);
+      // Tek review yüzeyi: başarıdan sonra aynı veriyi ikinci kez onaylatma.
+      // Private liste yalnız gerçek RPC başarısından sonra tazelenir.
+      void newRecipeId;
+      void queryClient.invalidateQueries({ queryKey: MY_RECIPES_QUERY_KEY });
+      router.replace({ pathname: "/home", params: { tab: "mine" } });
     } catch (e) {
       setError(e instanceof CustomizeRecipeError ? e.message : "Kaydedilemedi. Tekrar dener misin?");
       setSaving(false);
     }
-  }, [draft, saving, idempotencyKey, recipeId]);
+  }, [draft, saving, isOffline, idempotencyKey, recipeId, queryClient]);
 
   if (!recipeId) {
     return (
@@ -219,33 +249,29 @@ export default function RecipeCustomizeScreen() {
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
         <ActivityIndicator color="#C8833B" size="large" />
-        <Text className="mt-4 text-sm text-hwhite">Öneri hazırlanıyor…</Text>
+        <Text className="mt-4 text-sm text-hwhite" accessibilityLiveRegion="polite">Öneri hazırlanıyor…</Text>
+        <Pressable
+          onPress={cancelProposal}
+          className="mt-6 min-h-12 items-center justify-center rounded-xl border border-white/20 px-6"
+          accessibilityRole="button"
+          accessibilityLabel="Öneri isteğini iptal et"
+          accessibilityHint="Yazdıklarını koruyarak önceki adıma döner"
+        >
+          <Text className="text-sm text-hwhite">İptal et</Text>
+        </Pressable>
       </View>
     );
   }
 
   if (stage === "review" && draft) {
     return (
-      <KeyboardAvoidingScreen style={{ backgroundColor: "#1A1A14" }}>
-        <View
-          className="flex-row items-center justify-between border-b border-white/10 px-5 pb-3"
-          style={{ paddingTop: insets.top + 8 }}
-        >
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Text className="text-xl text-hwhite">✕</Text>
-          </Pressable>
-          <Text className="text-base font-medium text-hwhite">Öneriyi Kontrol Et</Text>
-          <Pressable disabled={saving} onPress={confirmSave}>
-            <Text className="text-base font-medium text-saffron">
-              {saving ? "Kaydediliyor…" : "Kaydet"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
+      <RecipeReviewShell
+        title="Öneriyi Kontrol Et"
+        saving={saving}
+        onClose={() => router.back()}
+        onSave={() => void confirmSave()}
+        error={error}
+      >
           {issues.length > 0 && (
             <View className="mb-4 rounded-xl border border-gold/40 bg-gold/15 p-3">
               <Text className="mb-1 text-xs font-medium text-hwhite">
@@ -429,9 +455,7 @@ export default function RecipeCustomizeScreen() {
             </View>
           ))}
 
-          {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
-        </ScrollView>
-      </KeyboardAvoidingScreen>
+      </RecipeReviewShell>
     );
   }
 
@@ -445,7 +469,7 @@ export default function RecipeCustomizeScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Text className="text-xl text-hwhite">✕</Text>
         </Pressable>
-        <Text className="text-lg font-medium text-hwhite">AI ile Özelleştir</Text>
+        <Text className="text-lg font-medium text-hwhite">Kendime göre uyarla</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }}>
@@ -470,15 +494,24 @@ export default function RecipeCustomizeScreen() {
           className="min-h-[140px] rounded-xl border border-white/15 bg-white/5 p-3 text-sm text-hwhite"
         />
         <Pressable
-          disabled={!canSubmit}
+          disabled={!canSubmit || isOffline}
           onPress={() => void submit()}
           className="mt-4 items-center rounded-xl bg-saffron py-3.5"
-          style={{ opacity: canSubmit ? 1 : 0.4 }}
+          style={{ opacity: canSubmit && !isOffline ? 1 : 0.4 }}
+          accessibilityRole="button"
+          accessibilityLabel="Kendime göre öneri hazırla"
+          accessibilityHint="AI önerisini kontrol ekranında açar; henüz kaydetmez"
+          accessibilityState={{ disabled: !canSubmit || isOffline }}
         >
           <Text className="font-medium text-hwhite">Öneri İste</Text>
         </Pressable>
 
         {error && <Text className="mt-4 text-xs text-hred">{error}</Text>}
+        {isOffline && !error && (
+          <Text className="mt-4 text-xs text-hmuted" accessibilityLiveRegion="polite">
+            Çevrimdışısın. Yazdıkların korunuyor; bağlantı gelince devam edebilirsin.
+          </Text>
+        )}
       </ScrollView>
     </KeyboardAvoidingScreen>
   );
