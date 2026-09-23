@@ -57,6 +57,8 @@ import {
   PrivateRecipeMutationError,
 } from "@/lib/hasat/privateRecipeMutations";
 import { MY_RECIPES_QUERY_KEY } from "@/lib/hasat/myRecipes";
+import { PrivateRecipeSharePanel } from "@/components/hasat/PrivateRecipeSharePanel";
+import { PRIVATE_RECIPE_SHARE_ENABLED } from "@/lib/hasat/privateRecipeShare";
 
 /**
  * P23-M5-b tarif detayı, P23-M6-ek'te dört-durumlu malzeme kartı aksiyonlarıyla
@@ -296,6 +298,10 @@ export default function RecipeDetailScreen() {
         </Text>
         {r.description && (
           <Text className="mt-2 text-sm text-hmuted">{r.description}</Text>
+        )}
+
+        {isOwn && PRIVATE_RECIPE_SHARE_ENABLED && (
+          <PrivateRecipeSharePanel recipeId={r.id} title={r.title} />
         )}
 
         <View className="mt-3 flex-row flex-wrap items-center gap-x-2 gap-y-1">

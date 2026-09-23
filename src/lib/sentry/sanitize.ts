@@ -6,15 +6,17 @@
 // hassas alanı redakte et, breadcrumb'ı/event'i asla tamamen düşürme.
 type JsonRecord = Record<string, unknown>;
 
-const SENSITIVE_KEY = /^(access_token|refresh_token|authorization)$/i;
+const SENSITIVE_KEY = /^(access_token|refresh_token|authorization|share|p_token)$/i;
 const BEARER_TOKEN = /Bearer\s+\S+/gi;
 const TOKEN_QUERY_PARAM = /\b(access_token|refresh_token)=[^&\s]+/gi;
+const SHARE_FRAGMENT = /(#|%23)share=[0-9a-f]{64}/gi;
 const SUPABASE_JWT = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g;
 
 function redactString(value: string): string {
   return value
     .replace(BEARER_TOKEN, "Bearer [REDACTED]")
     .replace(TOKEN_QUERY_PARAM, (_match, paramName: string) => `${paramName}=[REDACTED]`)
+    .replace(SHARE_FRAGMENT, (_match, prefix: string) => `${prefix}share=[REDACTED]`)
     .replace(SUPABASE_JWT, "[REDACTED]");
 }
 
