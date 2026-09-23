@@ -18,6 +18,14 @@ export function redirectSystemPath({
   path: string;
   initial: boolean;
 }): string {
+  // UX-1F-B: app.json has no Android https intent filter and iOS AASA only
+  // claims the public recipe paths. If an OS/dev client still hands this
+  // route to Expo, keep the capability in the fragment and send it to the
+  // hardened web landing. Never translate it to a query/search param.
+  if (/\/tarif-paylasim(?:[/?#]|$)/.test(path)) {
+    const fragment = path.match(/#share=[0-9a-f]{64}/i)?.[0] ?? "";
+    return `https://hasat-ai.com/tarif-paylasim${fragment}`;
+  }
   const match = path.match(/\/tarifler\/([^/?#]+)/);
   if (!match) return path;
   return path.replace(match[0], `/recipe/${match[1]}`);

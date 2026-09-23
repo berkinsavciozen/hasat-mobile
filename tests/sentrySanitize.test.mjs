@@ -95,6 +95,18 @@ test("breadcrumbs and events with no sensitive data pass through unchanged", () 
   assert.deepEqual(sanitizeBreadcrumb(breadcrumb), breadcrumb);
 });
 
+test("private recipe share capabilities are redacted from navigation and RPC data", () => {
+  const token = "a".repeat(64);
+  const breadcrumb = sanitizeBreadcrumb({
+    category: "navigation",
+    data: { to: `https://hasat-ai.com/tarif-paylasim#share=${token}` },
+  });
+  const event = sanitizeEvent({ extra: { p_token: token, share: token } });
+  assert.doesNotMatch(JSON.stringify(breadcrumb), new RegExp(token));
+  assert.equal(event.extra.p_token, "[REDACTED]");
+  assert.equal(event.extra.share, "[REDACTED]");
+});
+
 test("sanitize.ts exports are the only redaction surface init.ts relies on", async () => {
   const initSource = await readFile(new URL("../src/lib/sentry/init.ts", import.meta.url), "utf8");
   assert.match(initSource, /beforeBreadcrumb\(breadcrumb\)\s*\{\s*return sanitizeBreadcrumb\(breadcrumb\);/);
