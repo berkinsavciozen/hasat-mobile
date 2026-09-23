@@ -1,8 +1,31 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  RECIPE_SHARE_DURATIONS,
+  shareExpiry,
+} from "../src/lib/hasat/recipeShareExpiry.ts";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
+
+test("share durations match the client contract and remain valid after transport delay", () => {
+  assert.deepEqual(
+    RECIPE_SHARE_DURATIONS.map(({ label }) => label),
+    ["10 dakika", "1 saat", "1 gün", "7 gün", "30 gün"],
+  );
+
+  const clientNow = Date.UTC(2026, 8, 23, 12, 0, 0);
+  const backendNow = clientNow + 7_000;
+  const minimumExpiry = Date.parse(
+    shareExpiry(RECIPE_SHARE_DURATIONS[0].value, clientNow),
+  );
+  const maximumExpiry = Date.parse(
+    shareExpiry(RECIPE_SHARE_DURATIONS[4].value, clientNow),
+  );
+
+  assert.ok(minimumExpiry >= backendNow + 5 * 60_000);
+  assert.ok(maximumExpiry <= backendNow + 30 * 24 * 60 * 60_000);
+});
 
 test("mobile is default-off and owner RPCs use only UX-1F-A signatures", async () => {
   const api = await read("../src/lib/hasat/privateRecipeShare.ts");
