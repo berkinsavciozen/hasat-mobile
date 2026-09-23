@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { WEB_APP_URL } from "./webLinks";
+export { shareExpiry } from "./recipeShareExpiry";
 
 export const PRIVATE_RECIPE_SHARE_ENABLED =
   process.env.EXPO_PUBLIC_UX1F_PRIVATE_RECIPE_SHARE === "true";
@@ -13,10 +14,6 @@ export interface RecipeShareGrant {
 
 function requireEnabled(): void {
   if (!PRIVATE_RECIPE_SHARE_ENABLED) throw new Error("recipe_share_feature_disabled");
-}
-
-export function shareExpiry(milliseconds: number): string {
-  return new Date(Date.now() + milliseconds).toISOString();
 }
 
 export function privateRecipeShareUrl(token: string): string {
@@ -84,4 +81,3 @@ export function useRevokeRecipeShareGrant(recipeId: string) {
     onSuccess: () => client.invalidateQueries({ queryKey: ["recipeShareGrants", recipeId] }),
   });
 }
-
