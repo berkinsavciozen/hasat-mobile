@@ -9,18 +9,11 @@ import {
   useRotateRecipeShareGrant,
 } from "@/lib/hasat/privateRecipeShare";
 import { useIsOffline } from "@/lib/net/useIsOffline";
-
-const DURATIONS = [
-  { label: "5 dk", value: 5 * 60_000 },
-  { label: "1 saat", value: 60 * 60_000 },
-  { label: "1 gün", value: 24 * 60 * 60_000 },
-  { label: "7 gün", value: 7 * 24 * 60 * 60_000 },
-  { label: "30 gün", value: 30 * 24 * 60 * 60_000 },
-];
+import { RECIPE_SHARE_DURATIONS } from "@/lib/hasat/recipeShareExpiry";
 
 export function PrivateRecipeSharePanel({ recipeId, title }: { recipeId: string; title: string }) {
   const offline = useIsOffline();
-  const [duration, setDuration] = useState(DURATIONS[3].value);
+  const [duration, setDuration] = useState(RECIPE_SHARE_DURATIONS[3].value);
   const [message, setMessage] = useState<string | null>(null);
   const grants = useRecipeShareGrants(recipeId);
   const create = useCreateRecipeShareGrant(recipeId);
@@ -60,7 +53,7 @@ export function PrivateRecipeSharePanel({ recipeId, title }: { recipeId: string;
         Alıcı giriş yaptıktan sonra medya içermeyen önizlemeyi görür ve özel taslak kopyasını Defterim’e ekleyebilir.
       </Text>
       <View className="mt-3 flex-row flex-wrap gap-2" accessibilityRole="radiogroup">
-        {DURATIONS.map((option) => (
+        {RECIPE_SHARE_DURATIONS.map((option) => (
           <Pressable
             key={option.value}
             onPress={() => setDuration(option.value)}
