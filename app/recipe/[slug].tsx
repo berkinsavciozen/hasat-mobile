@@ -26,8 +26,10 @@ import {
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import {
   formatIngredientName,
+  formatIngredientUnit,
   formatQuantity,
   formatTRY,
+  formatUnquantifiedIngredient,
 } from "@/lib/hasat/format";
 import { cropEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
@@ -234,6 +236,7 @@ export default function RecipeDetailScreen() {
           isRepresentative={r.isRepresentativePhoto}
           alt={r.title}
           style={{ width: "100%", aspectRatio: 4 / 3 }}
+          fitSquareCover
         />
       </View>
 
@@ -693,9 +696,16 @@ function IngredientCard({
     avail?.crop_display_name,
     ingredient.free_text_name,
   );
-  const qtyLine = shop
-    ? `${formatQuantity(shop.scaled_quantity ?? shop.recipe_quantity, shop.recipe_unit)} ${shop.recipe_unit ?? ""}`.trim()
-    : `${formatQuantity(ingredient.quantity, ingredient.unit)} ${ingredient.unit ?? ""}`.trim();
+  // DQ-2: birim slug'ı okunur metne çevrilir (`su_bardagi` → "su bardağı");
+  // formatQuantity ondalık kuralı için ham birimi almaya devam eder. Miktarsız
+  // malzemede (tuz, karabiber…) boş satır yerine nedenin metni gösterilir.
+  const qty = shop ? (shop.scaled_quantity ?? shop.recipe_quantity) : ingredient.quantity;
+  const unit = shop ? shop.recipe_unit : ingredient.unit;
+  const unquantifiedLabel = formatUnquantifiedIngredient(ingredient.nutrition_exclusion_reason);
+  const qtyLine =
+    qty == null && unquantifiedLabel
+      ? unquantifiedLabel
+      : `${formatQuantity(qty, unit)} ${formatIngredientUnit(unit)}`.trim();
   const isMatched = !!ingredient.crop && (shop?.is_matched ?? false);
 
   // P23-M6-ek — dört durum:
@@ -727,7 +737,7 @@ function IngredientCard({
             <RepresentativeBadge className="bottom-0 right-0" />
           </>
         ) : (
-          <Text style={{ fontSize: 20 }}>{cropEmoji(ingredient.crop)}</Text>
+          <Text style={{ fontSize: 20 }}>{cropEmoji(ingredient.crop, ingredient.free_text_name)}</Text>
         )}
       </View>
       <View className="flex-1">

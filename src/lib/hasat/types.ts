@@ -54,6 +54,10 @@ export interface RecipeIngredientRow {
    * yoksa market malzemesi mi), kullanıcı önizlemede düzeltebilir. Malzeme
    * kartının dört-durum aksiyonlarını (Sipariş Ver / Talep Et) sürer. */
   ingredient_class: "tarimsal" | "platform_disi" | null;
+  /** DQ-2: miktarsız malzemenin nedeni (ör. `seasoning_to_taste_unquantified`).
+   * Detayda "damak tadına göre" gibi metne çevrilir. Opsiyonel: import/uyarlama
+   * taslakları ve eski (v3 öncesi) önbellek satırları bu alanı taşımaz. */
+  nutrition_exclusion_reason?: string | null;
 }
 
 export interface AvailabilityRow {

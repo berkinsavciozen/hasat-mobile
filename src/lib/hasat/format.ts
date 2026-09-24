@@ -68,3 +68,46 @@ export function formatIngredientName(
   if (crop) return formatCropIngredient(crop);
   return freeTextName ?? "";
 }
+
+// DQ-2 — tarif malzeme birimi gösterimi. DB'de birim bilerek karışık
+// saklanıyor: pipeline ASCII slug yazıyor (`su_bardagi`), eski tarifler
+// Türkçe metin (`su bardağı`). İkisi de geçerli; bu fonksiyon yalnızca OKUMA
+// görünümleri içindir. Düzenleme input'larının değeri ve `formatQuantity`'nin
+// ondalık kuralı ham birimle çalışmaya devam eder. Web'deki eşleme ile aynı.
+const INGREDIENT_UNIT_LABELS: Record<string, string> = {
+  su_bardagi: "su bardağı",
+  yemek_kasigi: "yemek kaşığı",
+  tatli_kasigi: "tatlı kaşığı",
+  cay_kasigi: "çay kaşığı",
+  cay_bardagi: "çay bardağı",
+  dis: "diş",
+  avuc: "avuç",
+  salkim: "salkım",
+  l: "litre",
+};
+
+export function formatIngredientUnit(unit: string | null | undefined): string {
+  if (unit == null) return "";
+  return INGREDIENT_UNIT_LABELS[unit] ?? unit.replace(/_/g, " ");
+}
+
+// DQ-2 — miktarsız malzemelerin (tuz, karabiber, servis yeşilliği...) boş
+// görünmemesi için `recipe_ingredients.nutrition_exclusion_reason`'dan metin.
+// Bilinmeyen/null neden → "" (eski önbellek satırlarında kolon null).
+const UNQUANTIFIED_LABELS: Record<string, string> = {
+  seasoning_to_taste_unquantified: "damak tadına göre",
+  serving_only_unquantified: "servis için",
+  trace_flavoring_unquantified: "bir miktar",
+};
+
+export function formatUnquantifiedIngredient(reason: string | null | undefined): string {
+  return (reason && UNQUANTIFIED_LABELS[reason]) || "";
+}
+
+/** DQ-2 — kare (1:1) kapak varyantı. Detay hero'su 4:3 kırptığı için bu
+ * kapaklar `contain` + bulanık arka planla gösterilir; 16:9 kapaklar
+ * etkilenmez. Sorgu dizesi/fragment varsa yok sayılır. */
+export function isSquareCoverUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /-1x1\.webp$/i.test(url.split(/[?#]/)[0]);
+}

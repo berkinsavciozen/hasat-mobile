@@ -107,6 +107,16 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
           await db.execAsync("PRAGMA user_version = 2");
         });
       }
+      if ((version?.user_version ?? 0) < 3) {
+        await db.withTransactionAsync(async () => {
+          // DQ-2: miktarsız malzeme metni. Eski satırlarda null kalır → metin
+          // boş görünür; bir sonraki detay tazelemesi (24 saat) doldurur.
+          await db.execAsync(
+            "ALTER TABLE cached_recipe_ingredients ADD COLUMN nutrition_exclusion_reason TEXT",
+          );
+          await db.execAsync("PRAGMA user_version = 3");
+        });
+      }
       return db;
     });
   }

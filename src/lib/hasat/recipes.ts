@@ -251,7 +251,7 @@ export async function fetchRecipeDetailFromNetwork(slug: string): Promise<{
         .order("step_no", { ascending: true }),
       supabase
         .from("recipe_ingredients")
-        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class")
+        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class, nutrition_exclusion_reason")
         .eq("recipe_id", recipeRow.id)
         .order("sort_order", { ascending: true }),
     ]);
@@ -310,7 +310,7 @@ export async function fetchOwnRecipeDetailFromNetwork(slug: string): Promise<{
         .order("step_no", { ascending: true }),
       supabase
         .from("recipe_ingredients")
-        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class")
+        .select("id, sort_order, crop, free_text_name, quantity, unit, note, is_key_ingredient, ingredient_class, nutrition_exclusion_reason")
         .eq("recipe_id", recipeRow.id)
         .order("sort_order", { ascending: true }),
     ]);

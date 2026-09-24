@@ -220,8 +220,9 @@ export async function cacheRecipeDetail(
     for (const i of ingredients) {
       await db.runAsync(
         `INSERT INTO cached_recipe_ingredients
-          (recipe_id, sort_order, id, crop, free_text_name, quantity, unit, note, is_key_ingredient)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (recipe_id, sort_order, id, crop, free_text_name, quantity, unit, note, is_key_ingredient,
+           nutrition_exclusion_reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           recipe.id,
           i.sort_order,
@@ -232,6 +233,7 @@ export async function cacheRecipeDetail(
           i.unit,
           i.note,
           i.is_key_ingredient ? 1 : 0,
+          i.nutrition_exclusion_reason ?? null,
         ],
       );
     }
@@ -279,6 +281,7 @@ export async function getCachedRecipeDetail(slug: string): Promise<{
       unit: r.unit,
       note: r.note,
       is_key_ingredient: !!r.is_key_ingredient,
+      nutrition_exclusion_reason: r.nutrition_exclusion_reason ?? null,
       // Önbellek yalnızca public/editoryal korpus içindir (kullanıcı importu
       // hiç yazılmaz — bkz. dosya başlığı) ve editoryal satırlarda
       // `ingredient_class` daima NULL (yalnızca AI import sınıflandırıyor).
