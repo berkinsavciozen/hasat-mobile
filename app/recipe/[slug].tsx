@@ -26,10 +26,12 @@ import {
 import { useIsOffline } from "@/lib/net/useIsOffline";
 import {
   formatIngredientName,
+  formatIngredientUnit,
   formatQuantity,
   formatTRY,
+  formatUnquantifiedIngredient,
 } from "@/lib/hasat/format";
-import { cropEmoji } from "@/lib/hasat/crop-emoji";
+import { ingredientEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
 import { useIsRecipeSaved, useToggleRecipeSave } from "@/lib/hasat/favorites";
@@ -234,6 +236,7 @@ export default function RecipeDetailScreen() {
           isRepresentative={r.isRepresentativePhoto}
           alt={r.title}
           style={{ width: "100%", aspectRatio: 4 / 3 }}
+          fitSquareCover
         />
       </View>
 
@@ -693,9 +696,17 @@ function IngredientCard({
     avail?.crop_display_name,
     ingredient.free_text_name,
   );
-  const qtyLine = shop
-    ? `${formatQuantity(shop.scaled_quantity ?? shop.recipe_quantity, shop.recipe_unit)} ${shop.recipe_unit ?? ""}`.trim()
-    : `${formatQuantity(ingredient.quantity, ingredient.unit)} ${ingredient.unit ?? ""}`.trim();
+  // DQ-2: birim slug'ı okunur metne çevrilir (`su_bardagi` → "su bardağı");
+  // formatQuantity ondalık kuralı için ham birimi almaya devam eder. Miktarsız
+  // malzemede (tuz, karabiber…) boş satır yerine nedenin metni gösterilir.
+  const qty = shop ? (shop.scaled_quantity ?? shop.recipe_quantity) : ingredient.quantity;
+  const unit = shop ? shop.recipe_unit : ingredient.unit;
+  // Not zaten "damak tadına göre" diyorsa etiket boş döner, satırda yalnız not.
+  const reason = ingredient.nutrition_exclusion_reason;
+  const qtyLine =
+    qty == null && formatUnquantifiedIngredient(reason)
+      ? formatUnquantifiedIngredient(reason, ingredient.note)
+      : `${formatQuantity(qty, unit)} ${formatIngredientUnit(unit)}`.trim();
   const isMatched = !!ingredient.crop && (shop?.is_matched ?? false);
 
   // P23-M6-ek — dört durum:
@@ -727,7 +738,7 @@ function IngredientCard({
             <RepresentativeBadge className="bottom-0 right-0" />
           </>
         ) : (
-          <Text style={{ fontSize: 20 }}>{cropEmoji(ingredient.crop)}</Text>
+          <Text style={{ fontSize: 20 }}>{ingredientEmoji(ingredient.crop, ingredient.free_text_name)}</Text>
         )}
       </View>
       <View className="flex-1">
@@ -742,8 +753,7 @@ function IngredientCard({
           )}
         </View>
         <Text className="text-xs text-hmuted">
-          {qtyLine}
-          {ingredient.note ? ` · ${ingredient.note}` : ""}
+          {[qtyLine, ingredient.note].filter(Boolean).join(" · ")}
         </Text>
 
         {isOffline ? (

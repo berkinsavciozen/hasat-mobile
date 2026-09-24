@@ -45,12 +45,23 @@ export function activeFilterCount(filters: RecipeFilters): number {
   );
 }
 
+// DQ-2 — vegan ⊂ vejetaryen: vegan etiketli tarif "vejetaryen" filtresinden
+// geçer. Ters yön geçmez; diğer etiketler birebir eşleşir.
+const DIET_IMPLIED_BY: Record<string, string[]> = {
+  vejetaryen: ["vegan"],
+};
+
+export function matchesDiet(dietTags: string[], diet: string): boolean {
+  if (dietTags.includes(diet)) return true;
+  return (DIET_IMPLIED_BY[diet] ?? []).some((tag) => dietTags.includes(tag));
+}
+
 export function matchesRecipeFilters(
   recipe: RecipeListItem,
   filters: RecipeFilters,
   availability: { coverageAvailable: boolean; availableCount?: number },
 ): boolean {
-  if (filters.diet && !recipe.diet_tags.includes(filters.diet)) return false;
+  if (filters.diet && !matchesDiet(recipe.diet_tags, filters.diet)) return false;
   if (filters.duration) {
     const minutes = (recipe.prep_minutes ?? 0) + (recipe.cook_minutes ?? 0);
     const max = filters.duration === "30" ? 30 : 60;

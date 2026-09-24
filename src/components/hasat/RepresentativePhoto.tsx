@@ -12,6 +12,7 @@
 // başına anlamlı kılar — tooltip açılmasa bile ekran okuyucu bunu duyurur.
 import { useState } from "react";
 import { View, Text, Image, StyleSheet, Pressable } from "react-native";
+import { isSquareCoverUrl } from "@/lib/hasat/format";
 
 export function RepresentativeBadge({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
@@ -45,6 +46,7 @@ export function RepresentativePhoto({
   placeholderEmoji = "🍽️",
   style,
   badgeClassName,
+  fitSquareCover = false,
 }: {
   src: string | null | undefined;
   isRepresentative: boolean;
@@ -53,6 +55,9 @@ export function RepresentativePhoto({
   style?: object;
   /** Positioning override for the badge, e.g. "top-3 right-3" (default: bottom-right). */
   badgeClassName?: string;
+  /** DQ-2 — `-1x1.webp` kare kapakları kırpmadan göster: görsel `contain`,
+   * arkasında aynı görselin bulanık kopyası. Diğer (16:9) kapaklar aynı kalır. */
+  fitSquareCover?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
 
@@ -64,13 +69,25 @@ export function RepresentativePhoto({
     );
   }
 
+  const contain = fitSquareCover && isSquareCoverUrl(src);
+
   return (
     <View style={[style, { overflow: "hidden" }]}>
+      {contain && (
+        <Image
+          source={{ uri: src }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          blurRadius={24}
+          accessible={false}
+          importantForAccessibility="no"
+        />
+      )}
       <Image
         source={{ uri: src }}
         accessibilityLabel={isRepresentative ? `${alt} (temsili görsel)` : alt}
         style={StyleSheet.absoluteFill}
-        resizeMode="cover"
+        resizeMode={contain ? "contain" : "cover"}
         onError={() => setFailed(true)}
       />
       {isRepresentative && <RepresentativeBadge className={badgeClassName} />}

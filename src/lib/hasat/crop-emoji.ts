@@ -1,8 +1,15 @@
-// Web'in `crop-config.ts` → `CROP_EMOJI_OVERRIDES`'ın 18 tariflik odak crop
-// listesine indirgenmiş kopyası (bkz. format.ts'teki aynı kopyalama notu).
-// `rpc_recipe_availability.crop_photo_url` doluysa bu hiç kullanılmaz — bu
-// yalnızca fotoğraf yokken (crop_config.default_photo_url de boşsa) veya
-// veri henüz yüklenmemişken gösterilen bir simge yedeğidir.
+// Web'in `crop-config.ts` → `CROP_EMOJI_OVERRIDES`'ının mobil kopyası (bkz.
+// format.ts'teki aynı kopyalama notu). `rpc_recipe_availability.crop_photo_url`
+// doluysa bu hiç kullanılmaz — bu yalnızca fotoğraf yokken (crop_config.
+// default_photo_url de boşsa) veya veri henüz yüklenmemişken gösterilen bir
+// simge yedeğidir.
+//
+// DQ-2: tablo ürüne bağlı olmayan (serbest metin) malzemeleri de kapsıyor —
+// su, tuz, şeker gibi. İki giriş noktası var:
+//   - `cropEmoji(crop)`: pazar yeri bağlamı (ürün sayfası vb.). Eşleşme yoksa
+//     eskisi gibi 🌾 — orada her şey gerçekten bir tarım ürünü.
+//   - `ingredientEmoji(crop, freeTextName)`: tarif malzemesi. Eşleşme yoksa
+//     nötr 🥄 — "tarçın", "vanilya" gibi ürün olmayan malzeme 🌾 almasın.
 const CROP_EMOJI_OVERRIDES: Record<string, string> = {
   safran: "🌸",
   zeytinyağı: "🫒",
@@ -12,18 +19,55 @@ const CROP_EMOJI_OVERRIDES: Record<string, string> = {
   ceviz: "🌰",
   badem: "🌰",
   buğday: "🌾",
+  arpa: "🌾",
+  pirinç: "🍚",
   domates: "🍅",
   biber: "🌶️",
   patlıcan: "🍆",
   incir: "🍇",
   elma: "🍎",
+  nar: "🍎",
+  ayva: "🍐",
+  portakal: "🍊",
+  mandalina: "🍊",
+  greyfurt: "🍊",
+  limon: "🍋",
+  muz: "🍌",
+  kabak: "🥒",
+  salatalık: "🥒",
+  patates: "🥔",
+  soğan: "🧅",
+  sarımsak: "🧄",
+  havuç: "🥕",
+  zencefil: "🫚",
   nane: "🌿",
   kekik: "🌿",
   nohut: "🫘",
   mercimek: "🫘",
+  şeker: "🍬",
+  tuz: "🧂",
+  su: "💧",
+  süt: "🥛",
+  yumurta: "🥚",
+  tereyağı: "🧈",
+  bal: "🍯",
 };
 
+export const DEFAULT_CROP_EMOJI = "🌾";
+export const NEUTRAL_INGREDIENT_EMOJI = "🥄";
+
+function lookup(name: string | null | undefined): string | undefined {
+  if (!name) return undefined;
+  return CROP_EMOJI_OVERRIDES[name.trim().toLocaleLowerCase("tr-TR")];
+}
+
 export function cropEmoji(crop: string | null | undefined): string {
-  if (!crop) return "🌾";
-  return CROP_EMOJI_OVERRIDES[crop.toLocaleLowerCase("tr-TR")] ?? "🌾";
+  return lookup(crop) ?? DEFAULT_CROP_EMOJI;
+}
+
+export function ingredientEmoji(
+  crop: string | null | undefined,
+  freeTextName: string | null | undefined,
+): string {
+  return lookup(crop) ?? lookup(freeTextName) ?? NEUTRAL_INGREDIENT_EMOJI;
 }

@@ -26,7 +26,7 @@ const { EMPTY_RECIPE_FILTERS, matchesRecipeFilters } = await import("../src/lib/
 const { deserializeRecipeFacts } = await import("../src/lib/offline/recipeFactsCache.ts");
 function detail(facts) { return { ...recipeRow(facts), displayPhotoUrl: "https://example.test/cover.webp", isRepresentativePhoto: false }; }
 const steps = [{ id: "step-1", step_no: 1, instruction: "Fixture step", photo_url: null, timer_seconds: 0 }];
-const ingredients = [{ id: "ing-1", sort_order: 1, crop: "domates", free_text_name: null, quantity: 0, unit: "g", note: null, is_key_ingredient: true, ingredient_class: null }];
+const ingredients = [{ id: "ing-1", sort_order: 1, crop: "domates", free_text_name: null, quantity: 0, unit: "g", note: null, is_key_ingredient: true, ingredient_class: null, nutrition_exclusion_reason: null }];
 
 test("upgrade a real legacy SQLite cache without losing content or trusting old labels", async () => {
   sqlite.exec(`CREATE TABLE cached_recipes (
@@ -43,7 +43,7 @@ test("upgrade a real legacy SQLite cache without losing content or trusting old 
   assert.deepEqual(mapRecipeFacts(found.recipe), unavailable);
   assert.equal(getReviewedAllergens(found.recipe).reviewState, "unreviewed");
   assert.equal((await cache.getDetailCacheStats()).count, 0);
-  assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 2);
+  assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 3);
   assert.deepEqual(found.recipe.required_equipment, []);
   assert.equal(matchesRecipeFilters(found.recipe, {
     ...EMPTY_RECIPE_FILTERS,
@@ -141,7 +141,7 @@ test("fresh installs create the versioned cache; restarting preserves detail fre
   };
   const first = await import("../src/lib/offline/db.ts?fresh");
   await first.getDb();
-  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 2);
+  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 3);
   fresh.exec("INSERT INTO cached_recipe_detail_meta VALUES ('test',123)");
   const second = await import("../src/lib/offline/db.ts?fresh-restart");
   await second.getDb();
