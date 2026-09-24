@@ -5,8 +5,11 @@
 // simge yedeğidir.
 //
 // DQ-2: tablo ürüne bağlı olmayan (serbest metin) malzemeleri de kapsıyor —
-// su, tuz, şeker gibi. 🌾 yalnızca tahıllar (buğday/arpa) için; eşleşmeyen
-// her şey nötr ikona düşer, "ürün" imajı vermez.
+// su, tuz, şeker gibi. İki giriş noktası var:
+//   - `cropEmoji(crop)`: pazar yeri bağlamı (ürün sayfası vb.). Eşleşme yoksa
+//     eskisi gibi 🌾 — orada her şey gerçekten bir tarım ürünü.
+//   - `ingredientEmoji(crop, freeTextName)`: tarif malzemesi. Eşleşme yoksa
+//     nötr 🥄 — "tarçın", "vanilya" gibi ürün olmayan malzeme 🌾 almasın.
 const CROP_EMOJI_OVERRIDES: Record<string, string> = {
   safran: "🌸",
   zeytinyağı: "🫒",
@@ -50,6 +53,7 @@ const CROP_EMOJI_OVERRIDES: Record<string, string> = {
   bal: "🍯",
 };
 
+export const DEFAULT_CROP_EMOJI = "🌾";
 export const NEUTRAL_INGREDIENT_EMOJI = "🥄";
 
 function lookup(name: string | null | undefined): string | undefined {
@@ -57,9 +61,13 @@ function lookup(name: string | null | undefined): string | undefined {
   return CROP_EMOJI_OVERRIDES[name.trim().toLocaleLowerCase("tr-TR")];
 }
 
-export function cropEmoji(
+export function cropEmoji(crop: string | null | undefined): string {
+  return lookup(crop) ?? DEFAULT_CROP_EMOJI;
+}
+
+export function ingredientEmoji(
   crop: string | null | undefined,
-  freeTextName?: string | null,
+  freeTextName: string | null | undefined,
 ): string {
   return lookup(crop) ?? lookup(freeTextName) ?? NEUTRAL_INGREDIENT_EMOJI;
 }

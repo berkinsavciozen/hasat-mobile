@@ -282,9 +282,10 @@ export async function getCachedRecipeDetail(slug: string): Promise<{
       note: r.note,
       is_key_ingredient: !!r.is_key_ingredient,
       nutrition_exclusion_reason: r.nutrition_exclusion_reason ?? null,
-      // Önbellek yalnızca public/editoryal korpus içindir (kullanıcı importu
-      // hiç yazılmaz — bkz. dosya başlığı) ve editoryal satırlarda
-      // `ingredient_class` daima NULL (yalnızca AI import sınıflandırıyor).
+      // `ingredient_class` önbelleğe yazılmıyor (REF-DQ-1'den beri editoryal
+      // satırlarda da dolu, ama kolon cached_recipe_ingredients'ta yok). Tek
+      // kullanıcısı detaydaki "Talep Et" akışı ve o çevrimdışıyken hiç
+      // gösterilmiyor — önbellekten okunan satırda null güvenli.
       ingredient_class: null,
     })),
   };

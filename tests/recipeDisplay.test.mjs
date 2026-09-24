@@ -23,7 +23,7 @@ const {
   formatUnquantifiedIngredient,
   isSquareCoverUrl,
 } = await import("../src/lib/hasat/format.ts");
-const { cropEmoji, NEUTRAL_INGREDIENT_EMOJI } = await import("../src/lib/hasat/crop-emoji.ts");
+const { cropEmoji, ingredientEmoji, NEUTRAL_INGREDIENT_EMOJI } = await import("../src/lib/hasat/crop-emoji.ts");
 const { EMPTY_RECIPE_FILTERS, matchesRecipeFilters } = await import("../src/lib/hasat/recipeListFilters.ts");
 const cache = await import("../src/lib/offline/recipeCache.ts");
 
@@ -64,33 +64,52 @@ test("unquantified ingredients map exclusion reasons to readable text", () => {
   assert.equal(formatUnquantifiedIngredient(undefined), "");
 });
 
-test("cropEmoji: crop first, then free-text override, then a neutral icon", () => {
-  assert.equal(cropEmoji("nar"), "🍎");
-  assert.equal(cropEmoji("Domates"), "🍅");
-  assert.equal(cropEmoji(null, "pirinç"), "🍚");
-  assert.equal(cropEmoji(null, "Su"), "💧");
-  assert.equal(cropEmoji(null, " tuz "), "🧂");
-  // crop wins over free text
-  assert.equal(cropEmoji("limon", "su"), "🍋");
-  // unknown crop falls through to free text
-  assert.equal(cropEmoji("bilinmeyen-crop", "yumurta"), "🥚");
-  for (const [crop, free] of [[null, "vanilya"], [null, null], [undefined, undefined], ["bilinmeyen", "bilinmeyen"]]) {
-    assert.notEqual(cropEmoji(crop, free), "🌾");
-    assert.equal(cropEmoji(crop, free), NEUTRAL_INGREDIENT_EMOJI);
-  }
-  // 🌾 stays for grains only
-  assert.equal(cropEmoji("buğday"), "🌾");
-  assert.equal(cropEmoji("arpa"), "🌾");
+test("unquantified label is not repeated when the note already says it", () => {
+  const reason = "seasoning_to_taste_unquantified";
+  for (const note of ["damak tadına göre", "Tadına göre", "zevkinize göre değil, zevkine göre", "DAMAK TADINA"])
+    assert.equal(formatUnquantifiedIngredient(reason, note), "", note);
+  assert.equal(formatUnquantifiedIngredient(reason, "iri öğütülmüş"), "damak tadına göre");
+  assert.equal(formatUnquantifiedIngredient(reason, null), "damak tadına göre");
+  assert.equal(formatUnquantifiedIngredient("serving_only_unquantified", "servis tabağına"), "servis için");
 });
 
-test("cropEmoji covers the full web-aligned override table", () => {
+test("cropEmoji (marketplace): known crop, unknown crop → 🌾", () => {
+  assert.equal(cropEmoji("nar"), "🍎");
+  assert.equal(cropEmoji("Domates"), "🍅");
+  assert.equal(cropEmoji("buğday"), "🌾");
+  assert.equal(cropEmoji("bilinmeyen-ürün"), "🌾");
+  assert.equal(cropEmoji(null), "🌾");
+  assert.equal(cropEmoji(undefined), "🌾");
+});
+
+test("ingredientEmoji (recipe): crop first, then free-text override, then neutral 🥄", () => {
+  assert.equal(ingredientEmoji("nar", null), "🍎");
+  assert.equal(ingredientEmoji(null, "pirinç"), "🍚");
+  assert.equal(ingredientEmoji(null, "Su"), "💧");
+  assert.equal(ingredientEmoji(null, " tuz "), "🧂");
+  // crop wins over free text
+  assert.equal(ingredientEmoji("limon", "su"), "🍋");
+  // unknown crop falls through to free text
+  assert.equal(ingredientEmoji("bilinmeyen-crop", "yumurta"), "🥚");
+  // unknown free-text ingredient → 🥄, never 🌾
+  for (const [crop, free] of [[null, "vanilya"], [null, null], [undefined, undefined], ["bilinmeyen", "bilinmeyen"]]) {
+    assert.notEqual(ingredientEmoji(crop, free), "🌾");
+    assert.equal(ingredientEmoji(crop, free), NEUTRAL_INGREDIENT_EMOJI);
+  }
+  assert.equal(NEUTRAL_INGREDIENT_EMOJI, "🥄");
+  // grains keep 🌾
+  assert.equal(ingredientEmoji("buğday", null), "🌾");
+  assert.equal(ingredientEmoji("arpa", null), "🌾");
+});
+
+test("ingredientEmoji covers the full web-aligned override table", () => {
   const table = {
     pirinç: "🍚", nar: "🍎", kabak: "🥒", salatalık: "🥒", ayva: "🍐",
     portakal: "🍊", mandalina: "🍊", greyfurt: "🍊", limon: "🍋", patates: "🥔",
     soğan: "🧅", sarımsak: "🧄", havuç: "🥕", muz: "🍌", zencefil: "🫚",
     şeker: "🍬", tuz: "🧂", su: "💧", süt: "🥛", yumurta: "🥚", tereyağı: "🧈", bal: "🍯",
   };
-  for (const [name, emoji] of Object.entries(table)) assert.equal(cropEmoji(null, name), emoji, name);
+  for (const [name, emoji] of Object.entries(table)) assert.equal(ingredientEmoji(null, name), emoji, name);
 });
 
 function recipe(diet_tags) {
@@ -141,8 +160,13 @@ test("detail screen wires unit formatter, unquantified text, emoji fallback and 
   const screen = await readFile(new URL("../app/recipe/[slug].tsx", import.meta.url), "utf8");
   assert.match(screen, /formatIngredientUnit\(unit\)/);
   assert.match(screen, /formatQuantity\(qty, unit\)/);
-  assert.match(screen, /formatUnquantifiedIngredient\(ingredient\.nutrition_exclusion_reason\)/);
-  assert.match(screen, /cropEmoji\(ingredient\.crop, ingredient\.free_text_name\)/);
+  assert.match(screen, /formatUnquantifiedIngredient\(reason, ingredient\.note\)/);
+  assert.match(screen, /ingredientEmoji\(ingredient\.crop, ingredient\.free_text_name\)/);
+  assert.doesNotMatch(screen, /cropEmoji/);
+  // marketplace product page keeps the crop-only helper (🌾 fallback)
+  const product = await readFile(new URL("../app/product/[farmerId]/[crop].tsx", import.meta.url), "utf8");
+  assert.match(product, /placeholderEmoji=\{cropEmoji\(first\.crop\)\}/);
+  assert.doesNotMatch(product, /ingredientEmoji/);
   assert.match(screen, /fitSquareCover/);
   // edit inputs keep the raw stored unit
   for (const file of ["../app/import.tsx", "../app/recipe-customize.tsx"]) {

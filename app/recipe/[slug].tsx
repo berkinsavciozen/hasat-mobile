@@ -31,7 +31,7 @@ import {
   formatTRY,
   formatUnquantifiedIngredient,
 } from "@/lib/hasat/format";
-import { cropEmoji } from "@/lib/hasat/crop-emoji";
+import { ingredientEmoji } from "@/lib/hasat/crop-emoji";
 import { getCookSession, type CookSession } from "@/lib/native/cookSession";
 import { WEB_APP_URL } from "@/lib/hasat/webLinks";
 import { useIsRecipeSaved, useToggleRecipeSave } from "@/lib/hasat/favorites";
@@ -701,10 +701,11 @@ function IngredientCard({
   // malzemede (tuz, karabiber…) boş satır yerine nedenin metni gösterilir.
   const qty = shop ? (shop.scaled_quantity ?? shop.recipe_quantity) : ingredient.quantity;
   const unit = shop ? shop.recipe_unit : ingredient.unit;
-  const unquantifiedLabel = formatUnquantifiedIngredient(ingredient.nutrition_exclusion_reason);
+  // Not zaten "damak tadına göre" diyorsa etiket boş döner, satırda yalnız not.
+  const reason = ingredient.nutrition_exclusion_reason;
   const qtyLine =
-    qty == null && unquantifiedLabel
-      ? unquantifiedLabel
+    qty == null && formatUnquantifiedIngredient(reason)
+      ? formatUnquantifiedIngredient(reason, ingredient.note)
       : `${formatQuantity(qty, unit)} ${formatIngredientUnit(unit)}`.trim();
   const isMatched = !!ingredient.crop && (shop?.is_matched ?? false);
 
@@ -737,7 +738,7 @@ function IngredientCard({
             <RepresentativeBadge className="bottom-0 right-0" />
           </>
         ) : (
-          <Text style={{ fontSize: 20 }}>{cropEmoji(ingredient.crop, ingredient.free_text_name)}</Text>
+          <Text style={{ fontSize: 20 }}>{ingredientEmoji(ingredient.crop, ingredient.free_text_name)}</Text>
         )}
       </View>
       <View className="flex-1">
@@ -752,8 +753,7 @@ function IngredientCard({
           )}
         </View>
         <Text className="text-xs text-hmuted">
-          {qtyLine}
-          {ingredient.note ? ` · ${ingredient.note}` : ""}
+          {[qtyLine, ingredient.note].filter(Boolean).join(" · ")}
         </Text>
 
         {isOffline ? (

@@ -94,14 +94,23 @@ export function formatIngredientUnit(unit: string | null | undefined): string {
 // DQ-2 — miktarsız malzemelerin (tuz, karabiber, servis yeşilliği...) boş
 // görünmemesi için `recipe_ingredients.nutrition_exclusion_reason`'dan metin.
 // Bilinmeyen/null neden → "" (eski önbellek satırlarında kolon null).
+// Not zaten aynı şeyi söylüyorsa ("damak tadına göre", "zevkinize göre")
+// etiket tekrarlanmaz — satırda yalnız not görünür.
 const UNQUANTIFIED_LABELS: Record<string, string> = {
   seasoning_to_taste_unquantified: "damak tadına göre",
   serving_only_unquantified: "servis için",
   trace_flavoring_unquantified: "bir miktar",
 };
 
-export function formatUnquantifiedIngredient(reason: string | null | undefined): string {
-  return (reason && UNQUANTIFIED_LABELS[reason]) || "";
+const NOTE_ALREADY_SAYS_TO_TASTE = /damak|tadına|zevkine/;
+
+export function formatUnquantifiedIngredient(
+  reason: string | null | undefined,
+  note?: string | null,
+): string {
+  const label = (reason && UNQUANTIFIED_LABELS[reason]) || "";
+  if (label && note && NOTE_ALREADY_SAYS_TO_TASTE.test(note.toLocaleLowerCase("tr-TR"))) return "";
+  return label;
 }
 
 /** DQ-2 — kare (1:1) kapak varyantı. Detay hero'su 4:3 kırptığı için bu
