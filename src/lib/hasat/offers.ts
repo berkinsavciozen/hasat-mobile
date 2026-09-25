@@ -20,6 +20,11 @@
 // çünkü kapsam web/mobil TUTARLILIĞI, web'in kendi ekranını sessizce
 // değiştirmek değil. Asıl doğruluk kaynağı zaten sunucu tarafı: `rpc_create_offer`
 // kendi iç kontrolünde `offer_items` üzerinden doğru (per-listing) hesabı yapıyor.
+// FIN-3-M (2026-09-25): FIN-3-S kararı bekleniyor — `enforce_offer_stock`
+// rezervasyonu karşı teklif geri çekme sonrası / çok partili miktar
+// pazarlığında anlaşılan miktardan (`final_quantity`) ayrışabiliyor. Bu hook
+// trigger ile AYNI hesabı göstermeli; karar + migration gelene kadar
+// `offers.quantity` bilerek değiştirilmedi.
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";

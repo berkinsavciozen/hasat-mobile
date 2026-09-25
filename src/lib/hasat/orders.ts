@@ -44,6 +44,69 @@ export interface BuyerOrderRow {
   farmerName: string | null;
 }
 
+// FIN-3-M — Parasal snapshot paritesi. FIN-3 (21 Eylül) `offers`'a değişmez
+// kolonlar ekledi: `snapshot_crop`/`snapshot_unit` (insert anında listing'den
+// kopya) ve `final_price_per_unit`/`final_quantity` (accepted anında bir kez).
+// Web'in `dbToOffer`/`dbToOrder`'ı ile birebir aynı öncelik:
+//   ürün/birim  = snapshot_* ?? canlı listing join ?? varsayılan
+//   miktar      = final_quantity ?? current_quantity ?? quantity
+//   birim fiyat = final_price_per_unit ?? current_price ?? price_per_unit
+// Listing join'i yalnız snapshot'ı null olan eski satırlar için fallback.
+// Karşı teklifin geri çekilmesi `quantity`/`price_per_unit`'i geri çekilen
+// değerde bırakıyor — o yüzden sipariş tutarı ASLA yalnız orijinal alanlardan
+// okunmamalı.
+function num(...values: unknown[]): number {
+  for (const v of values) {
+    if (v !== null && v !== undefined) return Number(v);
+  }
+  return 0;
+}
+
+function agreedTerms(o: any) {
+  return {
+    crop: (o?.snapshot_crop ?? o?.listing?.crop ?? "—") as string,
+    unit: (o?.snapshot_unit ?? o?.listing?.unit ?? "kg") as string,
+    quantity: num(o?.final_quantity, o?.current_quantity, o?.quantity),
+    pricePerUnit: num(o?.final_price_per_unit, o?.current_price, o?.price_per_unit),
+  };
+}
+
+export function mapBuyerOfferRow(r: any): BuyerOfferRow {
+  const terms = agreedTerms(r);
+  return {
+    id: r.id,
+    crop: terms.crop,
+    unit: terms.unit,
+    quantity: terms.quantity,
+    pricePerUnit: terms.pricePerUnit,
+    status: r.status === "pending_farmer" || r.status === "pending_buyer" ? "pending" : r.status,
+    ballSide: (r.ball_side === "buyer" ? "buyer" : "farmer") as BallSide,
+    paymentStatus: (r.payment_status ?? "unpaid") as PaymentStatus,
+    createdAt: r.created_at,
+    farmerName: r.farmer?.name ?? null,
+    farmerCity: r.farmer?.city ?? null,
+    delivery: r.delivery ?? null,
+    deliveryDate: r.delivery_date ?? null,
+    note: r.note ?? null,
+  };
+}
+
+export function mapBuyerOrderRow(r: any): BuyerOrderRow {
+  const terms = agreedTerms(r.offer);
+  return {
+    id: r.id,
+    code: r.order_ref,
+    crop: terms.crop,
+    unit: terms.unit,
+    quantity: terms.quantity,
+    pricePerUnit: terms.pricePerUnit,
+    total: terms.quantity * terms.pricePerUnit,
+    status: r.status,
+    createdAt: r.created_at,
+    farmerName: r.farmer?.name ?? null,
+  };
+}
+
 export function useBuyerOffers() {
   return useQuery({
     queryKey: ["buyerOffersReadonly"],
@@ -54,27 +117,12 @@ export function useBuyerOffers() {
       const { data, error } = await supabase
         .from("offers")
         .select(
-          "id, status, ball_side, payment_status, current_quantity, quantity, current_price, price_per_unit, delivery, delivery_date, note, created_at, farmer:profiles!offers_farmer_id_fkey(name,city), listing:listings(crop,unit)",
+          "id, status, ball_side, payment_status, current_quantity, quantity, current_price, price_per_unit, final_quantity, final_price_per_unit, snapshot_crop, snapshot_unit, delivery, delivery_date, note, created_at, farmer:profiles!offers_farmer_id_fkey(name,city), listing:listings(crop,unit)",
         )
         .eq("buyer_id", uid)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
-        id: r.id,
-        crop: r.listing?.crop ?? "—",
-        unit: r.listing?.unit ?? "kg",
-        quantity: Number(r.current_quantity ?? r.quantity),
-        pricePerUnit: Number(r.current_price ?? r.price_per_unit),
-        status: r.status === "pending_farmer" || r.status === "pending_buyer" ? "pending" : r.status,
-        ballSide: (r.ball_side === "buyer" ? "buyer" : "farmer") as BallSide,
-        paymentStatus: (r.payment_status ?? "unpaid") as PaymentStatus,
-        createdAt: r.created_at,
-        farmerName: r.farmer?.name ?? null,
-        farmerCity: r.farmer?.city ?? null,
-        delivery: r.delivery ?? null,
-        deliveryDate: r.delivery_date ?? null,
-        note: r.note ?? null,
-      }));
+      return (data ?? []).map(mapBuyerOfferRow);
     },
   });
 }
@@ -89,27 +137,12 @@ export function useBuyerOrders() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_ref, status, created_at, offer:offers(quantity, price_per_unit, listing:listings(crop, unit)), farmer:profiles!orders_farmer_id_fkey(name)",
+          "id, order_ref, status, created_at, offer:offers(quantity, price_per_unit, current_quantity, current_price, final_quantity, final_price_per_unit, snapshot_crop, snapshot_unit, listing:listings(crop, unit)), farmer:profiles!orders_farmer_id_fkey(name)",
         )
         .eq("buyer_id", uid)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((r: any) => {
-        const qty = Number(r.offer?.quantity ?? 0);
-        const price = Number(r.offer?.price_per_unit ?? 0);
-        return {
-          id: r.id,
-          code: r.order_ref,
-          crop: r.offer?.listing?.crop ?? "—",
-          unit: r.offer?.listing?.unit ?? "kg",
-          quantity: qty,
-          pricePerUnit: price,
-          total: qty * price,
-          status: r.status,
-          createdAt: r.created_at,
-          farmerName: r.farmer?.name ?? null,
-        };
-      });
+      return (data ?? []).map(mapBuyerOrderRow);
     },
   });
 }
