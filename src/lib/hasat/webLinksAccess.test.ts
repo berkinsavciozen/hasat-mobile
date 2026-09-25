@@ -1,7 +1,7 @@
 // Run with: node --experimental-strip-types --test src/lib/hasat/webLinksAccess.test.ts
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveWebSessionUrl } from "./webLinksAccess.ts";
+import { DEFAULT_WEB_APP_URL, resolveWebAppUrl, resolveWebSessionUrl } from "./webLinksAccess.ts";
 
 const WEB_APP_URL = "https://hasat.example";
 const PATH = "/buyer/orders/abc";
@@ -57,4 +57,10 @@ test("session missing access_token or refresh_token -> treated as no session", a
     },
   });
   assert.equal(url, `${WEB_APP_URL}${PATH}`);
+});
+
+test("default web host is hasat-ai.com (Universal Links domain), env override still wins", () => {
+  assert.equal(DEFAULT_WEB_APP_URL, "https://hasat-ai.com");
+  assert.equal(resolveWebAppUrl(undefined), "https://hasat-ai.com");
+  assert.equal(resolveWebAppUrl("https://staging.hasat.example"), "https://staging.hasat.example");
 });

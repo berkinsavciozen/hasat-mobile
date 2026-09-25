@@ -9,13 +9,13 @@
 //     devam et" yönlendirmesi M9 maddesi.
 import { Linking } from "react-native";
 import { supabase } from "@/lib/supabase/client";
-import { resolveWebSessionUrl } from "./webLinksAccess";
+import { resolveWebAppUrl, resolveWebSessionUrl } from "./webLinksAccess";
 
 // T1 Faz 1: reads from an Expo public env var, falling back to the current
-// production domain when it's unset — flip day sets EXPO_PUBLIC_WEB_APP_URL
-// and ships a new build (a domain change here needs a new store submission,
+// production domain (hasat-ai.com — DEFAULT_WEB_APP_URL in webLinksAccess.ts)
+// when it's unset — flip day sets EXPO_PUBLIC_WEB_APP_URL and ships a new build (a domain change here needs a new store submission,
 // since this value is baked into the binary at build time).
-export const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL ?? "https://hasat.lovable.app";
+export const WEB_APP_URL = resolveWebAppUrl(process.env.EXPO_PUBLIC_WEB_APP_URL);
 
 // 11. tur — oturum köprüsü: web'e çıkan her nokta kullanıcıyı sıfırdan OTP
 // girmeye zorluyordu. `hasat-d2c-marketplace`'e paralel giden turda eklenen

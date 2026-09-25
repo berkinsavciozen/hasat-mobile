@@ -11,6 +11,16 @@
 // anything else registered to handle that URL. T9 replaces the tokens in the URL with a random,
 // single-use, short-lived (60s) opaque nonce: the real tokens now travel only over an HTTPS POST body
 // to the `mobile-handoff-issue` / `mobile-handoff-exchange` edge functions (hasat-d2c-marketplace).
+// Canonical production web domain (24 Eylül'de hasat-ai.com'a geçildi). Universal Links
+// (app.json `applinks:hasat-ai.com`, web AASA) yalnız bu host'ta çalışıyor — fallback
+// hâlâ eski Lovable alt alan adını gösterseydi paylaşılan tarif linkleri iPhone'da uygulamayı açmazdı.
+export const DEFAULT_WEB_APP_URL = "https://hasat-ai.com";
+
+/** `EXPO_PUBLIC_WEB_APP_URL` set ise onu, değilse canonical domain'i döner. */
+export function resolveWebAppUrl(envValue: string | undefined): string {
+  return envValue ?? DEFAULT_WEB_APP_URL;
+}
+
 export type HandoffSession = { access_token: string; refresh_token: string };
 
 export type ResolveWebSessionUrlDeps = {
