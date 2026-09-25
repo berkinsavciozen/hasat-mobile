@@ -6,7 +6,7 @@ export function installRuntime() {
   const root = new URL("../", import.meta.url);
   const mocks = {
     "react": "export const useEffect=()=>{}, useMemo=f=>f(), useRef=()=>({});",
-    "@tanstack/react-query": "export const useQuery=options=>options;",
+    "@tanstack/react-query": "export const useQuery=options=>options, useMutation=options=>options, useQueryClient=()=>({});",
     "@/integrations/supabase/client": "export const supabase=globalThis.__recipeClient;",
     "@/lib/supabase/client": "export const supabase=globalThis.__recipeClient;",
     "@/lib/hasat/queries": "export const useAuthUserId=()=>null;",

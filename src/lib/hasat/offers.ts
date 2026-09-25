@@ -11,20 +11,11 @@
 //
 // Ürün sorgu şekli (`useFarmerCropListings`, `useListingStock`) web'in
 // `hasat-d2c-marketplace/src/lib/hasat/queries.ts`'indeki aynı adlı
-// hook'larının birebir portu — aynı tablo, aynı kolonlar, aynı stok hesabı
-// (DB-Schema.md → "Stok hesaplama"). `useListingStock`, `enforce_offer_stock`
-// trigger'ının kullandığı batch_total>0 fallback'ini display amaçlı
-// tekrarlıyor — web'deki gibi `offers.quantity` (offer_items değil) üzerinden
-// rezervasyon sayıyor; bu web'in de bugün kullandığı bir yaklaşıklık (çoklu
-// parti teklifte per-listing değil toplam miktar sayar), burada "düzeltilmedi"
-// çünkü kapsam web/mobil TUTARLILIĞI, web'in kendi ekranını sessizce
-// değiştirmek değil. Asıl doğruluk kaynağı zaten sunucu tarafı: `rpc_create_offer`
-// kendi iç kontrolünde `offer_items` üzerinden doğru (per-listing) hesabı yapıyor.
-// FIN-3-M (2026-09-25): FIN-3-S kararı bekleniyor — `enforce_offer_stock`
-// rezervasyonu karşı teklif geri çekme sonrası / çok partili miktar
-// pazarlığında anlaşılan miktardan (`final_quantity`) ayrışabiliyor. Bu hook
-// trigger ile AYNI hesabı göstermeli; karar + migration gelene kadar
-// `offers.quantity` bilerek değiştirilmedi.
+// hook'larının birebir portu. `useListingStock` stoku kendisi hesaplamıyor;
+// web ile aynı DB RPC'sini çağırıyor.
+// FIN-3-S (2026-09-25, karar A): rezervasyon tek kaynaktan — listing_stock_summary. 1 partili
+// teklif anlaşılan miktarı (final ?? current ?? quantity), 2+ partili teklif parti miktarlarını
+// rezerve eder; çok partili tekliflerde miktar DB'de kilitli.
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
@@ -100,29 +91,41 @@ export interface ListingStock {
   available: number;
 }
 
+export interface ListingStockSummaryRow {
+  base: number | string | null;
+  reserved: number | string | null;
+  available: number | string | null;
+  linked_count: number | string | null;
+  using_fallback: boolean | null;
+}
+
+// `listing_stock_summary` numeric kolonları PostgREST üzerinden string gelebilir
+// → Number'a çevrilir. Aktif olmayan (ve çağırana ait olmayan) ilan için RPC
+// satır döndürmez → sıfır stok, hata yok (web'in `useListingStock`'u ile aynı).
+export function mapListingStockSummary(
+  rows: ListingStockSummaryRow[] | null | undefined,
+): ListingStock {
+  const row = rows?.[0];
+  if (!row) return { base: 0, reserved: 0, available: 0 };
+  return {
+    base: Number(row.base ?? 0),
+    reserved: Number(row.reserved ?? 0),
+    available: Number(row.available ?? 0),
+  };
+}
+
 export function useListingStock(listingId: string | undefined | null) {
   return useQuery({
     queryKey: ["listingStock", listingId],
     enabled: !!listingId,
     queryFn: async (): Promise<ListingStock> => {
-      const [links, listingRes, offersRes] = await Promise.all([
-        supabase
-          .from("listing_harvest_entries")
-          .select("harvest_entry_id, harvest_entries(quantity)")
-          .eq("listing_id", listingId!),
-        supabase.from("listings").select("quantity").eq("id", listingId!).maybeSingle(),
-        supabase.from("offers").select("quantity").eq("listing_id", listingId!).eq("status", "accepted"),
-      ]);
-      if (links.error) throw links.error;
-      if (listingRes.error) throw listingRes.error;
-      if (offersRes.error) throw offersRes.error;
-      const batchSum = (links.data ?? []).reduce(
-        (s, r) => s + Number(r.harvest_entries?.quantity ?? 0),
-        0,
-      );
-      const base = batchSum > 0 ? batchSum : Number(listingRes.data?.quantity ?? 0);
-      const reserved = (offersRes.data ?? []).reduce((s, r) => s + Number(r.quantity ?? 0), 0);
-      return { base, reserved, available: Math.max(0, base - reserved) };
+      // `listing_stock_summary` henüz hasat-core `core/db/types.ts`'inde yok
+      // (dosya burada düzenlenmez) — web'deki gibi tip dışı çağrı.
+      const { data, error } = await (supabase.rpc as any)("listing_stock_summary", {
+        p_listing_id: listingId!,
+      });
+      if (error) throw error;
+      return mapListingStockSummary(data as ListingStockSummaryRow[] | null);
     },
   });
 }
