@@ -67,7 +67,7 @@ test("a webLinks.ts-style mobile-handoff URL breadcrumb has its token params red
   const at = encodeURIComponent(SUPABASE_LIKE_JWT);
   const rt = encodeURIComponent("v1.opaque-refresh-token");
   const url =
-    `https://hasat.lovable.app/auth/mobile-handoff#access_token=${at}&refresh_token=${rt}&next=%2Fprofile`;
+    `https://hasat-ai.com/auth/mobile-handoff#access_token=${at}&refresh_token=${rt}&next=%2Fprofile`;
 
   const breadcrumb = {
     type: "navigation",
@@ -80,7 +80,7 @@ test("a webLinks.ts-style mobile-handoff URL breadcrumb has its token params red
   assert.equal(sanitized.type, "navigation");
   assert.doesNotMatch(sanitized.data.to, /access_token=(?!\[REDACTED\])/);
   assert.doesNotMatch(sanitized.data.to, /refresh_token=(?!\[REDACTED\])/);
-  assert.match(sanitized.data.to, /^https:\/\/hasat\.lovable\.app\/auth\/mobile-handoff#/);
+  assert.match(sanitized.data.to, /^https:\/\/hasat-ai\.com\/auth\/mobile-handoff#/);
   assert.match(sanitized.data.to, /next=%2Fprofile/);
 });
 
