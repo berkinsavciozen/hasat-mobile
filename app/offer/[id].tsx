@@ -17,6 +17,11 @@ import { formatTRY, formatQuantity, formatCropIngredient } from "@/lib/hasat/for
 import { useBuyerOffers, offerStatusLabel } from "@/lib/hasat/orders";
 import { DELIVERY_OPTIONS } from "@/lib/hasat/offers";
 import { openWebWithSession } from "@/lib/hasat/webLinks";
+import { OrdersComingSoonCard } from "@/components/hasat/OrdersComingSoonCard";
+import {
+  useLogOrderIntentBlocked,
+  useOrderGate,
+} from "@/lib/hasat/orderGate";
 
 function deliveryLabel(delivery: string | null): string {
   return DELIVERY_OPTIONS.find((d) => d.id === delivery)?.label ?? "—";
@@ -32,6 +37,18 @@ export default function OfferDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: offers = [], isLoading } = useBuyerOffers();
   const offer = offers.find((o) => o.id === id);
+  const orderGate = useOrderGate();
+  const needsResponse =
+    offer?.ballSide === "buyer" &&
+    (offer.status === "pending" || offer.status === "counter");
+  const needsPayment =
+    offer?.status === "accepted" && offer.paymentStatus !== "paid";
+  const needsWebAction = needsResponse || needsPayment;
+
+  useLogOrderIntentBlocked(
+    orderGate.isConfirmedBlocked && needsWebAction,
+    { surface: "offer_route", crop: offer?.crop },
+  );
 
   const header = (
     <View className="flex-row items-center px-6 pb-3 pt-2">
@@ -68,10 +85,6 @@ export default function OfferDetailScreen() {
 
   const status = offerStatusLabel(offer);
   const total = offer.quantity * offer.pricePerUnit;
-  const needsResponse = offer.ballSide === "buyer" && (offer.status === "pending" || offer.status === "counter");
-  const needsPayment = offer.status === "accepted" && offer.paymentStatus !== "paid";
-  const needsWebAction = needsResponse || needsPayment;
-
   return (
     <View className="flex-1 bg-dark" style={{ paddingTop: insets.top }}>
       {header}
@@ -105,16 +118,21 @@ export default function OfferDetailScreen() {
           </View>
         )}
 
-        {needsWebAction && (
-          <Pressable
-            onPress={() => openWebWithSession(`/buyer/negotiation/${offer.id}`)}
-            className="mt-4 items-center rounded-lg border border-saffron py-3"
-          >
-            <Text className="text-sm font-medium text-saffron">
-              {needsPayment ? "Web'de Öde →" : "Web'de Yanıtla →"}
-            </Text>
-          </Pressable>
-        )}
+        {needsWebAction &&
+          (orderGate.canStartOrder ? (
+            <Pressable
+              onPress={() =>
+                openWebWithSession(`/buyer/negotiation/${offer.id}`)
+              }
+              className="mt-4 items-center rounded-lg border border-saffron py-3"
+            >
+              <Text className="text-sm font-medium text-saffron">
+                {needsPayment ? "Web'de Öde →" : "Web'de Yanıtla →"}
+              </Text>
+            </Pressable>
+          ) : (
+            <OrdersComingSoonCard />
+          ))}
       </ScrollView>
     </View>
   );

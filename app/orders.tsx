@@ -36,6 +36,11 @@ import { openWebWithSession } from "@/lib/hasat/webLinks";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 import { AppIcon } from "@/components/hasat/AppIcon";
+import { OrdersComingSoonCard } from "@/components/hasat/OrdersComingSoonCard";
+import {
+  useLogOrderIntentBlocked,
+  useOrderGate,
+} from "@/lib/hasat/orderGate";
 
 type Tab = "offers" | "orders";
 
@@ -45,6 +50,19 @@ export default function OrdersScreen() {
   const [tab, setTab] = useState<Tab>("offers");
   const { data: offers = [], isLoading: offersLoading } = useBuyerOffers();
   const { data: orders = [], isLoading: ordersLoading } = useBuyerOrders();
+  const orderGate = useOrderGate();
+  const blockedOffer = offers.find((offer) =>
+    (offer.ballSide === "buyer" &&
+      (offer.status === "pending" || offer.status === "counter")) ||
+    (offer.status === "accepted" && offer.paymentStatus !== "paid"),
+  );
+
+  useLogOrderIntentBlocked(
+    role !== "farmer" &&
+      orderGate.isConfirmedBlocked &&
+      !!blockedOffer,
+    { surface: "offer_route", crop: blockedOffer?.crop },
+  );
 
   // P23-M8-b-2 — sipariş durumu web↔mobil senkron değildi: web'de ödemesi
   // onaylanan bir sipariş mobilde güncellenmiyordu. Web tarafı realtime
@@ -151,7 +169,12 @@ export default function OrdersScreen() {
                 </Text>
               </View>
             }
-            renderItem={({ item }) => <OfferRow offer={item} />}
+            renderItem={({ item }) => (
+              <OfferRow
+                offer={item}
+                canStartOrder={orderGate.canStartOrder}
+              />
+            )}
           />
         )
       ) : ordersLoading ? (
@@ -180,7 +203,13 @@ export default function OrdersScreen() {
   );
 }
 
-function OfferRow({ offer }: { offer: BuyerOfferRow }) {
+function OfferRow({
+  offer,
+  canStartOrder,
+}: {
+  offer: BuyerOfferRow;
+  canStartOrder: boolean;
+}) {
   const status = offerStatusLabel(offer);
   const total = offer.quantity * offer.pricePerUnit;
   const needsResponse =
@@ -224,19 +253,22 @@ function OfferRow({ offer }: { offer: BuyerOfferRow }) {
           {status.label}
         </Text>
       </View>
-      {needsWebAction && (
-        <Pressable
-          onPress={(e) => {
-            e.stopPropagation();
-            openWebWithSession(`/buyer/negotiation/${offer.id}`);
-          }}
-          className="mt-3 min-h-12 items-center justify-center rounded-xl border border-gold py-2.5"
-        >
-          <Text className="text-xs font-medium text-gold">
-            {needsPayment ? "Web'de Öde →" : "Web'de Yanıtla →"}
-          </Text>
-        </Pressable>
-      )}
+      {needsWebAction &&
+        (canStartOrder ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+              openWebWithSession(`/buyer/negotiation/${offer.id}`);
+            }}
+            className="mt-3 min-h-12 items-center justify-center rounded-xl border border-gold py-2.5"
+          >
+            <Text className="text-xs font-medium text-gold">
+              {needsPayment ? "Web'de Öde →" : "Web'de Yanıtla →"}
+            </Text>
+          </Pressable>
+        ) : (
+          <OrdersComingSoonCard />
+        ))}
     </Pressable>
   );
 }
