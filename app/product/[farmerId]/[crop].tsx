@@ -77,7 +77,7 @@ export default function ProductScreen() {
   useLogOrderIntentBlocked(
     role !== "farmer" &&
       listings.length > 0 &&
-      (orderGate.isConfirmedBlocked || runtimeBlocked),
+      (orderGate.isConfirmedBlocked || orderGate.isError || runtimeBlocked),
     {
       surface: "recipe_product",
       listingId: listings.length === 1 ? listings[0].id : undefined,

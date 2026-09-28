@@ -79,6 +79,7 @@ test("offer, counter-offer and payment CTAs are all gate-protected", async () =>
   ]);
 
   assert.match(product, /orderGate\.canStartOrder && !runtimeBlocked/);
+  assert.match(product, /orderGate\.isError/);
   assert.match(product, /isOrdersDisabledError\(e\)/);
   assert.match(product, /surface: "recipe_product"/);
   assert.match(product, /recipeId/);

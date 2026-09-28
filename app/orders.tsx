@@ -59,7 +59,7 @@ export default function OrdersScreen() {
 
   useLogOrderIntentBlocked(
     role !== "farmer" &&
-      orderGate.isConfirmedBlocked &&
+      (orderGate.isConfirmedBlocked || orderGate.isError) &&
       !!blockedOffer,
     { surface: "offer_route", crop: blockedOffer?.crop },
   );

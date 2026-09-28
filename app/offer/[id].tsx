@@ -46,7 +46,7 @@ export default function OfferDetailScreen() {
   const needsWebAction = needsResponse || needsPayment;
 
   useLogOrderIntentBlocked(
-    orderGate.isConfirmedBlocked && needsWebAction,
+    (orderGate.isConfirmedBlocked || orderGate.isError) && needsWebAction,
     { surface: "offer_route", crop: offer?.crop },
   );
 
