@@ -45,6 +45,12 @@ import { useHasatMobileSession } from "@/lib/store/session";
 import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 import { CropRequestSheet } from "@/components/hasat/CropRequestSheet";
 import { AppIcon } from "@/components/hasat/AppIcon";
+import { OrdersComingSoonCard } from "@/components/hasat/OrdersComingSoonCard";
+import {
+  useLogOrderIntentBlocked,
+  useOrderGate,
+} from "@/lib/hasat/orderGate";
+import { isOrdersDisabledError } from "@/lib/hasat/orderGatePolicy";
 
 export default function ProductScreen() {
   const insets = useSafeAreaInsets();
@@ -64,7 +70,21 @@ export default function ProductScreen() {
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
+  const [runtimeBlocked, setRuntimeBlocked] = useState(false);
   const createOffer = useCreateOffer();
+  const orderGate = useOrderGate();
+
+  useLogOrderIntentBlocked(
+    role !== "farmer" &&
+      listings.length > 0 &&
+      (orderGate.isConfirmedBlocked || orderGate.isError || runtimeBlocked),
+    {
+      surface: "recipe_product",
+      listingId: listings.length === 1 ? listings[0].id : undefined,
+      recipeId,
+      crop,
+    },
+  );
 
   // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
   // (deep link dahil) buraya erişim kapatılıp web/WhatsApp'a yönlendirme
@@ -176,6 +196,10 @@ export default function ProductScreen() {
         params: { crop: first.crop },
       });
     } catch (e: any) {
+      if (isOrdersDisabledError(e)) {
+        setRuntimeBlocked(true);
+        return;
+      }
       setSubmitError(e?.message ?? "Teklif gönderilemedi");
     }
   };
@@ -327,22 +351,26 @@ export default function ProductScreen() {
               )}
             </Text>
           </View>
-          <Pressable
-            disabled={!canSubmit || createOffer.isPending}
-            onPress={() => void submit()}
-            className="min-h-12 items-center justify-center rounded-xl bg-primary px-6 py-3.5"
-            style={{ opacity: !canSubmit || createOffer.isPending ? 0.4 : 1 }}
-            accessibilityRole="button"
-            accessibilityLabel="Teklif gönder"
-          >
-            {createOffer.isPending ? (
-              <ActivityIndicator color="#FDFAF5" />
-            ) : (
-              <Text className="text-sm font-medium text-hwhite">
-                Teklif Gönder
-              </Text>
-            )}
-          </Pressable>
+          {orderGate.canStartOrder && !runtimeBlocked ? (
+            <Pressable
+              disabled={!canSubmit || createOffer.isPending}
+              onPress={() => void submit()}
+              className="min-h-12 items-center justify-center rounded-xl bg-primary px-6 py-3.5"
+              style={{ opacity: !canSubmit || createOffer.isPending ? 0.4 : 1 }}
+              accessibilityRole="button"
+              accessibilityLabel="Teklif gönder"
+            >
+              {createOffer.isPending ? (
+                <ActivityIndicator color="#FDFAF5" />
+              ) : (
+                <Text className="text-sm font-medium text-hwhite">
+                  Teklif Gönder
+                </Text>
+              )}
+            </Pressable>
+          ) : (
+            <OrdersComingSoonCard />
+          )}
         </View>
       </View>
     </KeyboardAvoidingScreen>
