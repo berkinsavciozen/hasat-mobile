@@ -7,18 +7,15 @@
 // app/orders.tsx (Siparişlerim), app/product/[farmerId]/[crop].tsx (Sipariş
 // Ver), src/components/hasat/CropRequestSheet.tsx (Talep Et). Tarif
 // okuma/kaydetme çiftçiye KAPANMADI — bu bileşen o akışlarda kullanılmıyor.
-import { View, Text, Pressable, Linking } from "react-native";
+//
+// MOB-WA (2026-09-29): Hasat WhatsApp kanalı şimdilik kapalı; çiftçiler yalnız
+// web'e yönlendiriliyor (WhatsApp butonu ve numara sabiti kaldırıldı).
+import { View, Text, Pressable } from "react-native";
 import { openWebWithSession, WEB_APP_URL } from "@/lib/hasat/webLinks";
 
 // Display form of WEB_APP_URL (no protocol) — keeps this text in sync with
 // the single WEB_APP_URL source instead of a second hardcoded domain.
 const WEB_APP_HOST = WEB_APP_URL.replace(/^https?:\/\//, "");
-
-// Web'deki `HASAT_WHATSAPP_NUMBER` (hasat-d2c-marketplace/src/lib/hasat/
-// constants.ts) ile aynı değer — iki repo arasında paylaşılan bir kod yolu
-// yok (kural #106 DB/RPC'ye taşınacak *mantık* için geçerli, sabit bir
-// numara için yeni bir RPC/tablo açmak bu turun kapsamı değil).
-const HASAT_WHATSAPP_NUMBER = "905421241011";
 
 export function FarmerRedirectNotice() {
   return (
@@ -28,8 +25,7 @@ export function FarmerRedirectNotice() {
         Bu uygulama alıcılar için tasarlandı.
       </Text>
       <Text className="mt-2 text-center text-sm text-hmuted">
-        Çiftçi işlemlerini web'den ({WEB_APP_HOST}) veya WhatsApp'tan Hasat AI asistanıyla
-        yapabilirsin.
+        Çiftçi işlemlerini web'den ({WEB_APP_HOST}) yapabilirsin.
       </Text>
       <View className="mt-6 w-full gap-2">
         <Pressable
@@ -37,12 +33,6 @@ export function FarmerRedirectNotice() {
           className="items-center rounded-xl bg-saffron py-3"
         >
           <Text className="text-sm font-medium text-hwhite">Web'de Aç →</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => Linking.openURL(`https://wa.me/${HASAT_WHATSAPP_NUMBER}`)}
-          className="items-center rounded-xl border border-white/15 py-3"
-        >
-          <Text className="text-sm font-medium text-hwhite">WhatsApp'ta Aç →</Text>
         </Pressable>
       </View>
     </View>

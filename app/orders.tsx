@@ -83,7 +83,7 @@ export default function OrdersScreen() {
   );
 
   // P23-M8-c (T2): Siparişlerim alıcıya özel bir akış — çiftçi hesabıyla
-  // girişte buraya erişim kapatılıp web/WhatsApp'a yönlendirme gösteriliyor
+  // girişte buraya erişim kapatılıp web'e yönlendirme gösteriliyor
   // (bkz. FarmerRedirectNotice dosya başı notu).
   if (role === "farmer") {
     return (

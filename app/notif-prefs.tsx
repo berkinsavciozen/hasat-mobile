@@ -2,6 +2,7 @@
 // buyer.settings.notifs.tsx'inin (aynı notif_prefs tablosu, aynı 16 event/rol
 // tablosu — bkz. src/lib/hasat/notif-events.ts) mobil karşılığı, tek ekran:
 // rol zaten oturumdan biliniyor, web'deki gibi iki ayrı route'a gerek yok.
+// WhatsApp kanalı gösterilmiyor (MOB-WA) — kanal listesi visibleChannels()'tan.
 import {
   View,
   Text,
@@ -14,8 +15,8 @@ import { router } from "expo-router";
 import { useHasatMobileSession } from "@/lib/store/session";
 import { useNotifPrefs, useUpdateNotifPrefs } from "@/lib/hasat/notifPrefs";
 import {
-  NOTIF_CHANNELS,
   notifEventsForRole,
+  visibleChannels,
   type NotifPrefKey,
 } from "@/lib/hasat/notif-events";
 
@@ -102,11 +103,9 @@ export default function NotifPrefsScreen() {
               </View>
               <View>
                 {(() => {
-                  const channels = NOTIF_CHANNELS.filter((c) => e.cols[c.key]);
+                  const channels = visibleChannels(e);
                   return channels.map((c, i) => {
                     const col = e.cols[c.key]!;
-                    const comingSoon =
-                      c.key === "whatsapp" && e.whatsappComingSoon;
                     return (
                       <View
                         key={c.key}
@@ -120,27 +119,14 @@ export default function NotifPrefsScreen() {
                             : undefined
                         }
                       >
-                        <View className="flex-row items-center gap-2">
-                          <Text className="text-sm text-hwhite/90">
-                            {c.label}
-                          </Text>
-                          {comingSoon && (
-                            <View className="rounded-full bg-white/10 px-1.5 py-0.5">
-                              <Text className="text-[9px] text-hmuted">
-                                Yakında
-                              </Text>
-                            </View>
-                          )}
-                        </View>
+                        <Text className="text-sm text-hwhite/90">
+                          {c.label}
+                        </Text>
                         <Toggle
                           on={prefs[col]}
-                          disabled={comingSoon || update.isPending}
+                          disabled={update.isPending}
                           label={`${e.label}, ${c.label}`}
-                          onPress={
-                            comingSoon
-                              ? undefined
-                              : () => onToggle(col, !prefs[col])
-                          }
+                          onPress={() => onToggle(col, !prefs[col])}
                         />
                       </View>
                     );
