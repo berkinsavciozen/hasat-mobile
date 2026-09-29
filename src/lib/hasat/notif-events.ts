@@ -12,6 +12,11 @@
 // push+sms yazıyor; useCreateCropRequest (talep oluşturma anı, hem web hem
 // mobil) mevcut ilan/parsel eşleşen ÇİFTÇİLERE sms yazıyor (push yok). Yani
 // hem farmer hem buyer bu toggle'a bağlı bildirim alabiliyor.
+//
+// MOB-WA (2026-09-29, Berkin kararı): Hasat WhatsApp kanalı şimdilik kapalı.
+// *_whatsapp kolonları, tipleri ve varsayılanları DB ile eşit kalsın diye
+// burada duruyor, ama WhatsApp kanalı UI'da hiç gösterilmiyor: NOTIF_CHANNELS
+// yalnız push + SMS içeriyor ve ekran kanalları visibleChannels() ile seçiyor.
 export type NotifChannel = "whatsapp" | "push" | "sms";
 export type NotifRole = "farmer" | "buyer";
 
@@ -96,8 +101,6 @@ export interface NotifEventDef {
   label: string;
   roles: NotifRole[];
   cols: Partial<Record<NotifChannel, NotifPrefKey>>;
-  /** Kolon DB'de var ama hiçbir yerde dispatch_whatsapp yok — toggle işlevsiz, gri/devre dışı gösterilmeli. */
-  whatsappComingSoon?: boolean;
 }
 
 export const NOTIF_EVENTS: NotifEventDef[] = [
@@ -106,7 +109,6 @@ export const NOTIF_EVENTS: NotifEventDef[] = [
     label: "Yeni Teklif",
     roles: ["farmer"],
     cols: { whatsapp: "new_offer_whatsapp", push: "new_offer_push", sms: "new_offer_sms" },
-    whatsappComingSoon: true,
   },
   {
     key: "offer_accepted",
@@ -179,7 +181,6 @@ export const NOTIF_EVENTS: NotifEventDef[] = [
     label: "Hasat Yaklaşıyor",
     roles: ["farmer", "buyer"],
     cols: { whatsapp: "harvest_time_whatsapp", push: "harvest_time_push", sms: "harvest_time_sms" },
-    whatsappComingSoon: true,
   },
   {
     key: "subscription_new",
@@ -205,8 +206,13 @@ export function notifEventsForRole(role: NotifRole): NotifEventDef[] {
   return NOTIF_EVENTS.filter((e) => e.roles.includes(role));
 }
 
+// UI'da gösterilen kanallar. WhatsApp bilerek yok (MOB-WA, yukarıya bakın).
 export const NOTIF_CHANNELS: { key: NotifChannel; label: string }[] = [
-  { key: "whatsapp", label: "WhatsApp" },
   { key: "push", label: "Push" },
   { key: "sms", label: "SMS" },
 ];
+
+/** Bir event için ekranda render edilecek kanallar (sırasıyla). */
+export function visibleChannels(event: NotifEventDef): { key: NotifChannel; label: string }[] {
+  return NOTIF_CHANNELS.filter((c) => event.cols[c.key]);
+}

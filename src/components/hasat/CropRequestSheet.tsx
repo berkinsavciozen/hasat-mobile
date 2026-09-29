@@ -99,7 +99,7 @@ export function CropRequestSheet({
         >
           {role === "farmer" ? (
             // P23-M8-c (T2): "Talep Et" alıcıya özel — çiftçi hesabıyla
-            // girişte form yerine web/WhatsApp yönlendirmesi gösteriliyor
+            // girişte form yerine web yönlendirmesi gösteriliyor
             // (bkz. FarmerRedirectNotice dosya başı notu).
             <>
               <View className="mb-3 flex-row items-center justify-between">

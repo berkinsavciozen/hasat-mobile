@@ -87,7 +87,7 @@ export default function ProductScreen() {
   );
 
   // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
-  // (deep link dahil) buraya erişim kapatılıp web/WhatsApp'a yönlendirme
+  // (deep link dahil) buraya erişim kapatılıp web'e yönlendirme
   // gösteriliyor (bkz. FarmerRedirectNotice dosya başı notu).
   if (role === "farmer") {
     return (
