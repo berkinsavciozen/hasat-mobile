@@ -6,9 +6,9 @@ import {
   introTourStorageKey,
   markIntroTourSeenInStorage,
   removeIntroTourSeenFromStorage,
-} from "../.test-build/introTourPersistence.js";
-import { createIntroTourEvaluator } from "../.test-build/introTourEvaluator.js";
-import { deleteAccountWithIntroCleanup } from "../.test-build/deleteAccount.js";
+} from "../.test-build/hasat/introTourPersistence.js";
+import { createIntroTourEvaluator } from "../.test-build/hasat/introTourEvaluator.js";
+import { deleteAccountWithIntroCleanup } from "../.test-build/hasat/deleteAccount.js";
 
 function memoryStorage() {
   const values = new Map();

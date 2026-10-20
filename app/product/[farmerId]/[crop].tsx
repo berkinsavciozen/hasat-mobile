@@ -86,20 +86,6 @@ export default function ProductScreen() {
     },
   );
 
-  // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
-  // (deep link dahil) buraya erişim kapatılıp web'e yönlendirme
-  // gösteriliyor (bkz. FarmerRedirectNotice dosya başı notu).
-  if (role === "farmer") {
-    return (
-      <View
-        className="flex-1 items-center justify-center bg-dark px-8"
-        style={{ paddingTop: insets.top }}
-      >
-        <FarmerRedirectNotice />
-      </View>
-    );
-  }
-
   const items = useOfferItems(listings, selected);
   const { data: canonicalUnit = listings[0]?.unit ?? "kg" } =
     useCropCanonicalUnit(crop, listings[0]?.unit);
@@ -119,6 +105,20 @@ export default function ProductScreen() {
     }
     return ids;
   }, [items, listings]);
+
+  // P23-M8-c (T2): "Sipariş Ver" alıcıya özel — çiftçi hesabıyla girişte
+  // (deep link dahil) buraya erişim kapatılıp web/WhatsApp'a yönlendirme
+  // gösteriliyor (bkz. FarmerRedirectNotice dosya başı notu).
+  if (role === "farmer") {
+    return (
+      <View
+        className="flex-1 items-center justify-center bg-dark px-8"
+        style={{ paddingTop: insets.top }}
+      >
+        <FarmerRedirectNotice />
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -142,7 +142,7 @@ export default function ProductScreen() {
         style={{ paddingTop: insets.top }}
       >
         <Text className="text-center text-sm text-hmuted">
-          Bu üreticinin bu üründe aktif partisi yok.
+          Bu üreticinin bu üründe aktif hasat partisi yok.
         </Text>
         <Pressable
           onPress={() => setRequestOpen(true)}
@@ -229,7 +229,7 @@ export default function ProductScreen() {
             {first.farmerCity ? ` · ${first.farmerCity}` : ""}
           </Text>
           <Text className="mt-3 text-xs text-hmuted">
-            {listings.length} parti mevcut — istediğin partilerden miktar seç,
+            {listings.length} hasat partisi mevcut — istediğin hasat partilerinden miktar seç,
             tek teklif gönder.
           </Text>
         </View>
@@ -346,7 +346,7 @@ export default function ProductScreen() {
                 <Text className="text-xs text-hmuted">
                   {"  "}
                   {formatQuantity(totalQty, canonicalUnit)} {canonicalUnit} ·{" "}
-                  {items.length} parti
+                  {items.length} hasat partisi
                 </Text>
               )}
             </Text>
@@ -393,7 +393,7 @@ function BatchRow({
   const { data: stock } = useListingStock(listing.id);
   const available = stock?.available ?? listing.quantity;
   const soldOut = available <= 0;
-  const label = listing.batchName || `Parti #${index + 1}`;
+  const label = listing.batchName || `Hasat partisi #${index + 1}`;
 
   const clampAndSet = (raw: number) => {
     if (!Number.isFinite(raw) || raw < 0) raw = 0;
@@ -456,7 +456,7 @@ function BatchRow({
 
       {belowMin && (
         <Text className="mt-1.5 text-[11px]" style={{ color: "#D4A843" }}>
-          Bu partide minimum sipariş{" "}
+          Bu hasat partisinde minimum sipariş{" "}
           {formatQuantity(listing.minOrder, listing.unit)} {listing.unit} —
           girdiğiniz miktar bunun altında kaldığı sürece teklif gönderilemez.
         </Text>

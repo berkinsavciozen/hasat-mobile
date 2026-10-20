@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { brand } from "@/lib/core/design/tokens";
 import { useReducedMotion } from "@/lib/native/useReducedMotion";
@@ -6,7 +6,7 @@ import { useReducedMotion } from "@/lib/native/useReducedMotion";
 /** A quiet, dependency-free seed-to-seedling loop for the cold-start screen. */
 export function SeedlingLoader() {
   const reduceMotion = useReducedMotion();
-  const growth = useRef(new Animated.Value(1)).current;
+  const [growth] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     if (reduceMotion) {

@@ -20,6 +20,14 @@ import { FarmerRedirectNotice } from "@/components/hasat/FarmerRedirectNotice";
 import { KeyboardAvoidingScreen } from "@/components/hasat/KeyboardAvoidingScreen";
 import { AppIcon } from "@/components/hasat/AppIcon";
 import { useReducedMotion } from "@/lib/native/useReducedMotion";
+import {
+  convertRequestQuantity,
+  normalizeRequestUnit,
+  type RequestUnit,
+  validateMobileCropRequest,
+} from "@/lib/hasat/requestForm";
+
+const REQUEST_UNITS: readonly RequestUnit[] = ["kg", "g", "L"];
 
 export function CropRequestSheet({
   visible,
@@ -48,25 +56,46 @@ export function CropRequestSheet({
   const [quantity, setQuantity] = useState(
     initialQuantity != null ? String(initialQuantity) : "",
   );
-  const [unit, setUnit] = useState(initialUnit ?? "");
+  const [unit, setUnit] = useState<RequestUnit>(() => normalizeRequestUnit(initialUnit));
   const [region, setRegion] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const changeUnit = (nextUnit: RequestUnit) => {
+    const result = convertRequestQuantity(quantity, unit, nextUnit);
+    setUnit(nextUnit);
+    if (result.converted) {
+      setQuantity(result.quantityText);
+      setFormError(null);
+    } else {
+      setFormError("Litre ile gram/kilogram arasında otomatik dönüşüm yapılamaz. Miktarı kontrol edin.");
+    }
+  };
 
   const submit = async () => {
     const name = (lockCropName ? initialCropName : cropName).trim();
-    if (!name) return;
+    const validationError = validateMobileCropRequest({ cropName: name, quantity });
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
     const q = Number(quantity.replace(",", "."));
-    await create.mutateAsync({
-      cropName: name,
-      quantity: Number.isFinite(q) && q > 0 ? q : null,
-      unit: unit.trim() || null,
-      region: region.trim() || null,
-      note: note.trim() || null,
-      recipeId,
-      ingredientClass,
-    });
-    setDone(true);
+    setFormError(null);
+    try {
+      await create.mutateAsync({
+        cropName: name,
+        quantity: quantity.trim() ? q : null,
+        unit: quantity.trim() ? unit : null,
+        region: region.trim() || null,
+        note: note.trim() || null,
+        recipeId,
+        ingredientClass,
+      });
+      setDone(true);
+    } catch {
+      setFormError("Talep gönderilemedi. Bilgileriniz duruyor; bağlantınızı kontrol edip tekrar deneyin.");
+    }
   };
 
   const close = () => {
@@ -162,7 +191,10 @@ export function CropRequestSheet({
               ) : (
                 <TextInput
                   value={cropName}
-                  onChangeText={setCropName}
+                  onChangeText={(value) => {
+                    setCropName(value);
+                    setFormError(null);
+                  }}
                   className="mb-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
                   placeholderTextColor="rgba(253,250,245,0.3)"
                   accessibilityLabel="Ürün"
@@ -176,7 +208,10 @@ export function CropRequestSheet({
                   </Text>
                   <TextInput
                     value={quantity}
-                    onChangeText={setQuantity}
+                    onChangeText={(value) => {
+                      setQuantity(value);
+                      setFormError(null);
+                    }}
                     keyboardType="decimal-pad"
                     className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
                     accessibilityLabel="Miktar"
@@ -186,14 +221,27 @@ export function CropRequestSheet({
                   <Text className="mb-1 text-[11px] uppercase tracking-wider text-hmuted">
                     Birim
                   </Text>
-                  <TextInput
-                    value={unit}
-                    onChangeText={setUnit}
-                    placeholder="kg, g, L…"
-                    placeholderTextColor="rgba(253,250,245,0.3)"
-                    className="rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-base text-hwhite"
-                    accessibilityLabel="Birim"
-                  />
+                  <View
+                    className="flex-row rounded-xl border border-white/15 bg-white/5 p-1"
+                    accessibilityRole="radiogroup"
+                  >
+                    {REQUEST_UNITS.map((option) => {
+                      const selected = option === unit;
+                      return (
+                        <Pressable
+                          key={option}
+                          onPress={() => changeUnit(option)}
+                          className="min-h-10 flex-1 items-center justify-center rounded-lg"
+                          style={{ backgroundColor: selected ? "#C8833B" : "transparent" }}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`Birim ${option}`}
+                        >
+                          <Text className="text-sm font-medium text-hwhite">{option}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
 
@@ -216,16 +264,13 @@ export function CropRequestSheet({
                 value={note}
                 onChangeText={setNote}
                 multiline
+                maxLength={500}
                 placeholderTextColor="rgba(253,250,245,0.3)"
                 className="mb-4 min-h-[60px] rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-hwhite"
                 accessibilityLabel="Not, opsiyonel"
               />
 
-              {create.isError && (
-                <Text className="mb-3 text-xs text-hred">
-                  Talep gönderilemedi. Tekrar dener misin?
-                </Text>
-              )}
+              {formError && <Text className="mb-3 text-xs text-hred">{formError}</Text>}
 
               <Pressable
                 disabled={
