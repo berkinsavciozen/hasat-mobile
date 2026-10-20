@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": ".test-build",
+    "rootDir": "src/lib",
+    "noEmit": false
+  },
+  "include": [
+    "src/lib/native/homeLayout.ts",
+    "src/lib/hasat/introTourPersistence.ts",
+    "src/lib/hasat/introTourEvaluator.ts",
+    "src/lib/hasat/deleteAccount.ts",
+    "src/lib/hasat/requestForm.ts",
+    "src/lib/sentry/sanitize.ts"
+  ]
+}

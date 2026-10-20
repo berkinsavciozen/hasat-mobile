@@ -55,8 +55,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Yazılı bir tarifin fotoğrafını galeriden seçip Hasat defterine aktarabilmen için.",
-          "cameraPermission": "Yazılı bir tarifin (kitap sayfası, el yazısı not) fotoğrafını çekip Hasat defterine aktarabilmen için.",
+          "photosPermission": "Ürün, hasat, parsel, sertifika veya tarif fotoğraflarını Hasat'a ekleyebilmen için.",
+          "cameraPermission": "Ürün, hasat, parsel, sertifika veya tarif fotoğraflarını Hasat'a ekleyebilmen için.",
           "microphonePermission": false
         }
       ],

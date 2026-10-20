@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { sanitizeBreadcrumb, sanitizeEvent } from "../.test-build/sanitize.js";
+import { sanitizeBreadcrumb, sanitizeEvent } from "../.test-build/sentry/sanitize.js";
 
 const SUPABASE_LIKE_JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.dGhpc19pc19hX2Zha2Vfc2lnbmF0dXJl";

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { getHomeResponsiveLayout } from "../.test-build/homeLayout.js";
+import { getHomeResponsiveLayout } from "../.test-build/native/homeLayout.js";
 
 const homeUrl = new URL("../app/home.tsx", import.meta.url);
 

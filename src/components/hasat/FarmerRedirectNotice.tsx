@@ -32,7 +32,7 @@ export function FarmerRedirectNotice() {
           onPress={() => openWebWithSession("/")}
           className="items-center rounded-xl bg-saffron py-3"
         >
-          <Text className="text-sm font-medium text-hwhite">Web'de Aç →</Text>
+          <Text className="text-sm font-medium text-hwhite">Web&apos;de Aç →</Text>
         </Pressable>
       </View>
     </View>
